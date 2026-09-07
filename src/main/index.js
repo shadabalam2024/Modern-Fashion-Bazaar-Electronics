@@ -12,6 +12,7 @@ const settingsHandler = require('./ipc/settings');
 const backupHandler = require('./ipc/backup');
 const returnsHandler = require('./ipc/returns');
 const closingHandler = require('./ipc/closing');
+const { checkPermission } = require('./session');
 
 let mainWindow;
 let db;
@@ -82,15 +83,59 @@ app.on('ready', async () => {
     openPrintWindow(invoiceId);
   });
 
-  createWindow();
+  ipcMain.handle('get-app-version', () => app.getVersion());
 
   if (!isDev) {
     const { autoUpdater } = require('electron-updater');
-    autoUpdater.on('update-downloaded', () => {
-      mainWindow?.webContents.send('update-available');
+    autoUpdater.autoDownload = true;
+    autoUpdater.autoInstallOnAppQuit = false;
+
+    autoUpdater.on('update-available', (info) => {
+      mainWindow?.webContents.send('update-available', { version: info.version });
     });
-    autoUpdater.checkForUpdatesAndNotify();
+    autoUpdater.on('update-not-available', () => {
+      mainWindow?.webContents.send('update-not-available');
+    });
+    autoUpdater.on('download-progress', (progress) => {
+      mainWindow?.webContents.send('update-download-progress', { percent: progress.percent });
+    });
+    autoUpdater.on('update-downloaded', () => {
+      mainWindow?.webContents.send('update-downloaded');
+    });
+    autoUpdater.on('error', (error) => {
+      mainWindow?.webContents.send('update-error', { message: error.message });
+    });
+
+    // Manual "Check for Updates" button - restricted to Admin since a download/install
+    // affects the whole app and everyone using it on this machine.
+    ipcMain.handle('check-for-updates', (event) => {
+      const denied = checkPermission(event, 'admin');
+      if (denied) return denied;
+      try {
+        autoUpdater.checkForUpdates();
+        return { success: true };
+      } catch (error) {
+        return { success: false, message: error.message };
+      }
+    });
+
+    ipcMain.handle('install-update-now', (event) => {
+      const denied = checkPermission(event, 'admin');
+      if (denied) return denied;
+      autoUpdater.quitAndInstall();
+      return { success: true };
+    });
+
+    // Silent check on launch - the renderer surfaces a popup if one is found.
+    autoUpdater.checkForUpdates().catch(() => {});
+  } else {
+    // Dev mode: updates aren't available, but the handlers must still exist
+    // so the Settings "Updates" tab doesn't error out while developing.
+    ipcMain.handle('check-for-updates', () => ({ success: false, message: 'Updates are disabled in development mode' }));
+    ipcMain.handle('install-update-now', () => ({ success: false, message: 'Updates are disabled in development mode' }));
   }
+
+  createWindow();
 });
 
 app.on('window-all-closed', () => {

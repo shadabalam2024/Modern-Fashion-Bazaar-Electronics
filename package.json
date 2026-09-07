@@ -52,6 +52,11 @@
     "directories": {
       "buildResources": "public"
     },
+    "publish": {
+      "provider": "github",
+      "owner": "shadabalam2024",
+      "repo": "Modern-Fashion-Bazaar-Electronics-App"
+    },
     "win": {
       "target": [
         {

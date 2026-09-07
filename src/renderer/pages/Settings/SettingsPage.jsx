@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react'
 import Navbar from '../../components/Navbar'
 import Sidebar from '../../components/Sidebar'
+import useAppUpdater from '../../hooks/useAppUpdater'
 
 const PERMISSION_KEYS = ['dashboard', 'billing', 'inventory', 'purchase', 'customers', 'analytics', 'settings']
 
@@ -329,13 +330,61 @@ function BackupTab() {
   )
 }
 
+function UpdatesTab() {
+  const { status, version, progress, error, currentVersion, checkForUpdates, installNow } = useAppUpdater()
+
+  const statusLine = () => {
+    switch (status) {
+      case 'checking': return 'Checking for updates...'
+      case 'available': return `Update v${version} found - downloading...`
+      case 'downloading': return `Downloading update... ${Math.round(progress)}%`
+      case 'downloaded': return 'Update downloaded and ready to install.'
+      case 'not-available': return "You're on the latest version."
+      case 'error': return error || 'Could not check for updates.'
+      default: return null
+    }
+  }
+
+  return (
+    <div className="bg-white rounded-lg shadow p-6 max-w-2xl">
+      <h2 className="text-xl font-bold mb-4">App Updates</h2>
+      <p className="text-sm text-gray-500 mb-4">Current version: <span className="font-medium text-gray-700">{currentVersion || '...'}</span></p>
+
+      <button
+        onClick={checkForUpdates}
+        disabled={status === 'checking' || status === 'downloading'}
+        className="bg-blue-600 text-white px-4 py-2 rounded hover:bg-blue-700 disabled:opacity-50 mb-4"
+      >
+        Check for Updates
+      </button>
+
+      {statusLine() && (
+        <p className={`text-sm ${status === 'error' ? 'text-red-600' : 'text-gray-600'}`}>{statusLine()}</p>
+      )}
+
+      {status === 'downloading' && (
+        <div className="w-full bg-gray-200 rounded h-2 mt-2 max-w-sm">
+          <div className="bg-blue-600 h-2 rounded" style={{ width: `${Math.round(progress)}%` }} />
+        </div>
+      )}
+
+      {status === 'downloaded' && (
+        <button onClick={installNow} className="mt-4 bg-green-600 text-white px-4 py-2 rounded hover:bg-green-700">
+          Restart & Install Now
+        </button>
+      )}
+    </div>
+  )
+}
+
 export default function SettingsPage() {
   const [tab, setTab] = useState('shop')
 
   const tabs = [
     { key: 'shop', label: 'Shop Info' },
     { key: 'users', label: 'Users & Roles' },
-    { key: 'backup', label: 'Backup & Restore' }
+    { key: 'backup', label: 'Backup & Restore' },
+    { key: 'updates', label: 'Updates' }
   ]
 
   return (
@@ -361,6 +410,7 @@ export default function SettingsPage() {
           {tab === 'shop' && <ShopInfoTab />}
           {tab === 'users' && <UsersRolesTab />}
           {tab === 'backup' && <BackupTab />}
+          {tab === 'updates' && <UpdatesTab />}
         </div>
       </div>
     </div>
