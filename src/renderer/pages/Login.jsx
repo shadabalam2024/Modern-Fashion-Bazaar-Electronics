@@ -23,7 +23,7 @@ export default function Login() {
   return (
     <div className="flex items-center justify-center min-h-screen bg-gray-100">
       <div className="bg-white p-8 rounded-lg shadow-md w-96">
-        <h1 className="text-3xl font-bold mb-6 text-center">Electronics Shop CRM</h1>
+        <h1 className="text-3xl font-bold mb-6 text-center">Modern Fashion Bazaar</h1>
         <form onSubmit={handleLogin}>
           <label className="block text-xs text-gray-500 mb-1">Username</label>
           <input

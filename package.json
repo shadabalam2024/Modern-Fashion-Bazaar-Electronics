@@ -1,7 +1,7 @@
 {
   "name": "electronics-shop-crm",
   "version": "1.0.0",
-  "description": "Electronics Shop CRM - Point of Sale & Inventory Management",
+  "description": "Modern Fashion Bazaar - Point of Sale & Inventory Management",
   "main": "src/main/index.js",
   "homepage": "./",
   "author": "Shadab",
@@ -43,7 +43,8 @@
   },
   "build": {
     "appId": "com.electronicsshopcrm.app",
-    "productName": "Electronics Shop CRM",
+    "productName": "Modern Fashion Bazaar",
+    "npmRebuild": false,
     "files": [
       "src/main/**/*",
       "dist/**/*",

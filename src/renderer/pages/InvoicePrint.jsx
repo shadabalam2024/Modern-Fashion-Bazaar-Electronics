@@ -55,7 +55,7 @@ export default function InvoicePrint({ invoiceId }) {
         {logoUrl && (
           <img src={logoUrl} alt="Logo" style={{ maxWidth: 80, maxHeight: 80, margin: '0 auto 6px', display: 'block' }} />
         )}
-        <div style={{ fontSize: 18, fontWeight: 'bold' }}>{shop.shop_name || 'Electronics Shop'}</div>
+        <div style={{ fontSize: 18, fontWeight: 'bold' }}>{shop.shop_name || 'Modern Fashion Bazaar'}</div>
         {shop.shop_address && <div>{shop.shop_address}</div>}
         {shop.shop_phone && <div>Ph: {shop.shop_phone}</div>}
         {shop.gst_number && <div>GSTIN: {shop.gst_number}</div>}
