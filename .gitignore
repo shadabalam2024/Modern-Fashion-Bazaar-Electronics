@@ -1,0 +1,13 @@
+node_modules/
+dist/
+dist-electron/
+release/
+.env
+
+# throwaway test-harness scripts (see scripts/launch-test-app.mjs)
+__test_*.mjs
+__test_*.js
+
+# License signing key — never commit. Losing/leaking this lets anyone mint
+# valid license keys for any machine. See tools/generateKeypair.js.
+tools/private-key.pem
