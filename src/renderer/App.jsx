@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react'
-import { BrowserRouter, Routes, Route } from 'react-router-dom'
+import { HashRouter, Routes, Route } from 'react-router-dom'
 import { Provider, useSelector } from 'react-redux'
 import { store } from './store'
 import Login from './pages/Login'
@@ -22,7 +22,7 @@ function AuthGate() {
   if (!user) return <Login />
 
   return (
-    <BrowserRouter>
+    <HashRouter>
       <Routes>
         <Route path="/" element={<Dashboard />} />
         <Route path="/billing" element={<BillingPage />} />
@@ -34,7 +34,7 @@ function AuthGate() {
         <Route path="/analytics" element={<AnalyticsPage />} />
         <Route path="/settings" element={<SettingsPage />} />
       </Routes>
-    </BrowserRouter>
+    </HashRouter>
   )
 }
 
