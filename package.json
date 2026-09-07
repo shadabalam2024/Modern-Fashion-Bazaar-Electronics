@@ -59,6 +59,7 @@
       "repo": "Modern-Fashion-Bazaar-Electronics-App"
     },
     "win": {
+      "icon": "public/icon.ico",
       "target": [
         {
           "target": "nsis",
