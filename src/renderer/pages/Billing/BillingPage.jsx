@@ -415,7 +415,8 @@ export default function BillingPage() {
                           <input
                             type="number"
                             min="0"
-                            value={item.discountValue}
+                            placeholder="0"
+                            value={item.discountValue || ''}
                             onChange={(e) => updateItemDiscount(item.product_id, parseFloat(e.target.value) || 0)}
                             className="w-16 text-right border rounded"
                           />
@@ -525,7 +526,8 @@ export default function BillingPage() {
                 <input
                   type="number"
                   min="0"
-                  value={discount}
+                  placeholder="0"
+                  value={discount || ''}
                   onChange={(e) => setDiscount(e.target.value)}
                   className="flex-1 px-4 py-2 border rounded"
                 />
