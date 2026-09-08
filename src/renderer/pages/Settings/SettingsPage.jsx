@@ -413,7 +413,7 @@ function BackupTab() {
   }
 
   return (
-    <div className="bg-white rounded-lg shadow p-6 max-w-2xl">
+    <div className="bg-white rounded-lg shadow p-6 max-w-4xl">
       <div className="flex justify-between items-center mb-4">
         <h2 className="text-xl font-bold">Backup & Restore</h2>
         <button onClick={handleCreateBackup} className="bg-blue-600 text-white px-4 py-2 rounded hover:bg-blue-700">
@@ -421,22 +421,23 @@ function BackupTab() {
         </button>
       </div>
       {message && <p className="text-green-600 mb-4 text-sm">{message}</p>}
+      <div className="overflow-x-auto">
       <table className="w-full text-sm">
         <thead>
           <tr className="border-b text-left">
-            <th className="py-2">Filename</th>
-            <th className="py-2">Created</th>
-            <th className="py-2 text-right">Size</th>
-            <th className="py-2 text-right">Actions</th>
+            <th className="py-2 px-3">Filename</th>
+            <th className="py-2 px-3 whitespace-nowrap">Created</th>
+            <th className="py-2 px-3 text-right whitespace-nowrap">Size</th>
+            <th className="py-2 px-3 text-right whitespace-nowrap">Actions</th>
           </tr>
         </thead>
         <tbody>
           {backups.map(b => (
             <tr key={b.filename} className="border-b">
-              <td className="py-2">{b.filename}</td>
-              <td className="py-2">{new Date(b.createdAt).toLocaleString()}</td>
-              <td className="py-2 text-right">{(b.size / 1024).toFixed(0)} KB</td>
-              <td className="py-2 text-right space-x-3 whitespace-nowrap">
+              <td className="py-2 px-3">{b.filename}</td>
+              <td className="py-2 px-3 whitespace-nowrap">{new Date(b.createdAt).toLocaleString()}</td>
+              <td className="py-2 px-3 text-right whitespace-nowrap">{(b.size / 1024).toFixed(0)} KB</td>
+              <td className="py-2 px-3 text-right space-x-3 whitespace-nowrap">
                 <button onClick={() => handleRestore(b)} className="text-blue-600 hover:underline">Restore</button>
                 <button onClick={() => handleExportCsv(b)} className="text-gray-600 hover:underline">Export to Excel</button>
                 <button onClick={() => handleDelete(b)} className="text-red-600 hover:underline">Delete</button>
@@ -448,6 +449,7 @@ function BackupTab() {
           )}
         </tbody>
       </table>
+      </div>
     </div>
   )
 }
