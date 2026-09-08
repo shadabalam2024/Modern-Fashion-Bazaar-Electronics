@@ -31,7 +31,9 @@ module.exports = (ipcMain, db) => {
   });
 
   // List backups
-  ipcMain.handle('list-backups', () => {
+  ipcMain.handle('list-backups', (event) => {
+    const denied = checkPermission(event, 'admin');
+    if (denied) return denied;
     try {
       const backupDir = path.join(app.getPath('userData'), 'backups');
 

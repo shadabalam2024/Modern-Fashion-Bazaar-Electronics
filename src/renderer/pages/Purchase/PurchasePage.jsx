@@ -2,6 +2,7 @@ import { useState, useEffect, useRef } from 'react'
 import { useSelector } from 'react-redux'
 import Navbar from '../../components/Navbar'
 import Sidebar from '../../components/Sidebar'
+import { createScanTracker } from '../../utils/scanTracker'
 
 function Field({ label, className = '', children }) {
   return (
@@ -25,6 +26,8 @@ export default function PurchasePage() {
   const [supplierForm, setSupplierForm] = useState({ name: '', contact_person: '', phone: '', email: '', address: '' })
   const [message, setMessage] = useState('')
   const [error, setError] = useState('')
+  const [scanFlash, setScanFlash] = useState(null)
+  const scanTrackerRef = useRef(createScanTracker())
   const [historySearch, setHistorySearch] = useState('')
   const [categories, setCategories] = useState([])
   const [showNewProductForm, setShowNewProductForm] = useState(false)
@@ -82,9 +85,11 @@ export default function PurchasePage() {
   }
 
   const handleSearch = async (value) => {
+    scanTrackerRef.current.onKeystroke()
     setSearchTerm(value)
     if (!value.trim()) {
       setSearchResults([])
+      scanTrackerRef.current.reset()
       return
     }
     const results = await window.ipcRenderer.invoke('search-product', value)
@@ -97,15 +102,28 @@ export default function PurchasePage() {
 
     const exact = await window.ipcRenderer.invoke('get-product-by-barcode', searchTerm.trim())
     if (exact) {
-      addItem(exact)
+      addItem(exact, true)
+      scanTrackerRef.current.reset()
       return
     }
-    if (searchResults.length > 0) {
-      addItem(searchResults[0])
+    // No exact barcode match. Only auto-add the top fuzzy match when the input was
+    // typed at scanner speed with a single result - see scanTracker.js.
+    if (searchResults.length === 0) {
+      setError(`No product found for "${searchTerm}"`)
+    } else if (scanTrackerRef.current.isScanLike() && searchResults.length === 1) {
+      addItem(searchResults[0], true)
     }
+    scanTrackerRef.current.reset()
   }
 
-  const addItem = (product) => {
+  const flashScan = (name) => {
+    setScanFlash(name)
+    setTimeout(() => setScanFlash(current => current === name ? null : current), 1200)
+  }
+
+  const addItem = (product, viaScan = false) => {
+    setError('')
+    if (viaScan) flashScan(product.name)
     setItems(prev => {
       const existing = prev.find(i => i.product_id === product.id)
       if (existing) {
@@ -308,6 +326,11 @@ export default function PurchasePage() {
                     onKeyDown={handleBarcodeEnter}
                     className="w-full px-4 py-2 border rounded"
                   />
+                  {scanFlash && (
+                    <div className="absolute z-20 -top-2 right-0 translate-y-[-100%] bg-green-600 text-white text-sm px-3 py-1 rounded shadow">
+                      ✓ Added: {scanFlash}
+                    </div>
+                  )}
                   {searchResults.length > 0 && (
                     <div className="absolute z-10 w-full bg-white border rounded mt-1 shadow-lg max-h-64 overflow-y-auto">
                       {searchResults.map(p => (

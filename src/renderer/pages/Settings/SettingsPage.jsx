@@ -129,6 +129,117 @@ function ShopInfoTab() {
   )
 }
 
+function PrinterTab() {
+  const [form, setForm] = useState({
+    shop_name: '', shop_address: '', shop_phone: '', shop_email: '',
+    gst_number: '', gst_rate: '', payment_terms: '', return_policy: '',
+    thermal_printing_enabled: false, thermal_printer_name: '', thermal_paper_width: 80
+  })
+  const [printers, setPrinters] = useState([])
+  const [loadingPrinters, setLoadingPrinters] = useState(false)
+  const [message, setMessage] = useState('')
+  const [testResult, setTestResult] = useState(null)
+  const [testing, setTesting] = useState(false)
+
+  useEffect(() => {
+    // Load the full settings object (not just printer fields) since Save sends the whole
+    // thing back - update-shop-settings replaces every field, it doesn't merge partial data.
+    window.ipcRenderer.invoke('get-shop-settings').then(data => {
+      setForm(f => ({ ...f, ...data, thermal_printing_enabled: !!data.thermal_printing_enabled }))
+    })
+    loadPrinters()
+  }, [])
+
+  const loadPrinters = async () => {
+    setLoadingPrinters(true)
+    const list = await window.ipcRenderer.invoke('list-printers')
+    setPrinters(Array.isArray(list) ? list : [])
+    setLoadingPrinters(false)
+  }
+
+  const handleSave = async (e) => {
+    e.preventDefault()
+    const result = await window.ipcRenderer.invoke('update-shop-settings', form)
+    setMessage(result.success ? 'Saved' : (result.message || 'Failed to save'))
+    setTimeout(() => setMessage(''), 3000)
+  }
+
+  const handleTestPrint = async () => {
+    setTesting(true)
+    setTestResult(null)
+    const result = await window.ipcRenderer.invoke('test-print', {
+      printerName: form.thermal_printer_name,
+      paperWidth: form.thermal_paper_width
+    })
+    setTestResult(result)
+    setTesting(false)
+  }
+
+  return (
+    <form onSubmit={handleSave} className="bg-white rounded-lg shadow p-6 max-w-2xl">
+      <h2 className="text-xl font-bold mb-1">Thermal Receipt Printer</h2>
+      <p className="text-sm text-gray-500 mb-4">
+        Sends receipts straight to the printer below, skipping the print dialog. This has not
+        been verified against real thermal-printer hardware - use "Test Print" to confirm it
+        actually works before relying on it. The printer must already be installed and show up
+        in Windows' own printer list (Settings &gt; Printers &amp; scanners) - install it there first.
+      </p>
+
+      <label className="flex items-center gap-2 mb-4">
+        <input type="checkbox" checked={!!form.thermal_printing_enabled}
+          onChange={(e) => setForm({ ...form, thermal_printing_enabled: e.target.checked })} />
+        <span>Print receipts directly to the printer below</span>
+      </label>
+
+      <div className="grid grid-cols-2 gap-4 mb-4">
+        <Field label="Printer">
+          <div className="flex gap-2">
+            <select value={form.thermal_printer_name || ''}
+              onChange={(e) => setForm({ ...form, thermal_printer_name: e.target.value })}
+              className="w-full px-3 py-2 border rounded">
+              <option value="">Select a printer...</option>
+              {printers.map(p => (
+                <option key={p.name} value={p.name}>{p.displayName || p.name}{p.isDefault ? ' (default)' : ''}</option>
+              ))}
+            </select>
+            <button type="button" onClick={loadPrinters} className="px-3 py-2 border rounded text-sm hover:bg-gray-50 whitespace-nowrap">
+              {loadingPrinters ? '...' : 'Refresh'}
+            </button>
+          </div>
+          {printers.length === 0 && !loadingPrinters && (
+            <p className="text-xs text-gray-400 mt-1">No printers found. Install it in Windows, then Refresh.</p>
+          )}
+        </Field>
+        <Field label="Paper Width">
+          <select value={form.thermal_paper_width || 80}
+            onChange={(e) => setForm({ ...form, thermal_paper_width: parseInt(e.target.value) })}
+            className="w-full px-3 py-2 border rounded">
+            <option value={80}>80mm</option>
+            <option value={58}>58mm</option>
+          </select>
+        </Field>
+      </div>
+
+      <div className="flex items-center gap-3 mb-4">
+        <button type="button" onClick={handleTestPrint} disabled={!form.thermal_printer_name || testing}
+          className="px-4 py-2 border rounded hover:bg-gray-50 disabled:opacity-50">
+          {testing ? 'Printing...' : 'Test Print'}
+        </button>
+        {testResult && (
+          <span className={testResult.success ? 'text-green-600 text-sm' : 'text-red-600 text-sm'}>
+            {testResult.success ? '✓ Sent - check the printer for output' : `✗ ${testResult.message || 'Failed'}`}
+          </span>
+        )}
+      </div>
+
+      {message && <p className="text-green-600 mb-4 text-sm">{message}</p>}
+      <button type="submit" className="bg-blue-600 text-white px-4 py-2 rounded hover:bg-blue-700">
+        Save Printer Settings
+      </button>
+    </form>
+  )
+}
+
 function UsersRolesTab() {
   const [users, setUsers] = useState([])
   const [roles, setRoles] = useState([])
@@ -382,6 +493,7 @@ export default function SettingsPage() {
 
   const tabs = [
     { key: 'shop', label: 'Shop Info' },
+    { key: 'printer', label: 'Printer' },
     { key: 'users', label: 'Users & Roles' },
     { key: 'backup', label: 'Backup & Restore' },
     { key: 'updates', label: 'Updates' }
@@ -408,6 +520,7 @@ export default function SettingsPage() {
           </div>
 
           {tab === 'shop' && <ShopInfoTab />}
+          {tab === 'printer' && <PrinterTab />}
           {tab === 'users' && <UsersRolesTab />}
           {tab === 'backup' && <BackupTab />}
           {tab === 'updates' && <UpdatesTab />}

@@ -246,6 +246,9 @@ class ShopDatabase {
     addColumnIfMissing('invoices', 'refunded_amount', 'REAL DEFAULT 0');
     addColumnIfMissing('return_items', 'disposition', 'TEXT');
     addColumnIfMissing('customer_payments', 'payment_mode', "TEXT NOT NULL DEFAULT 'cash'");
+    addColumnIfMissing('shop_settings', 'thermal_printing_enabled', 'BOOLEAN DEFAULT 0');
+    addColumnIfMissing('shop_settings', 'thermal_printer_name', 'TEXT');
+    addColumnIfMissing('shop_settings', 'thermal_paper_width', 'INTEGER DEFAULT 80');
 
     // Backfill: non-credit invoices are paid in full at sale time
     this.db.exec(`UPDATE invoices SET amount_paid = total_amount WHERE payment_mode != 'credit' AND amount_paid = 0`);

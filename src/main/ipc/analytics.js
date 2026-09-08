@@ -1,6 +1,10 @@
+const { checkPermission } = require('../session');
+
 module.exports = (ipcMain, db) => {
   // Get sales report
   ipcMain.handle('get-sales-report', (event, { startDate, endDate }) => {
+    const denied = checkPermission(event, 'analytics');
+    if (denied) return denied;
     try {
       const sales = db.prepare(`
         SELECT 
@@ -21,6 +25,8 @@ module.exports = (ipcMain, db) => {
 
   // Get profit analysis
   ipcMain.handle('get-profit-analysis', (event, { startDate, endDate }) => {
+    const denied = checkPermission(event, 'analytics');
+    if (denied) return denied;
     try {
       const analysis = db.prepare(`
         SELECT 
@@ -45,8 +51,11 @@ module.exports = (ipcMain, db) => {
     }
   });
 
-  // Get today's sales
-  ipcMain.handle('get-today-sales', () => {
+  // Get today's sales. Login-only (not tied to 'analytics'): this feeds the Dashboard,
+  // which every logged-in role can see regardless of their other permissions.
+  ipcMain.handle('get-today-sales', (event) => {
+    const denied = checkPermission(event);
+    if (denied) return denied;
     try {
       const today = new Date().toISOString().split('T')[0];
       
@@ -77,8 +86,10 @@ module.exports = (ipcMain, db) => {
     }
   });
 
-  // Get top products
+  // Get top products. Login-only (feeds the Dashboard, see get-today-sales above).
   ipcMain.handle('get-top-products', (event, limit = 5) => {
+    const denied = checkPermission(event);
+    if (denied) return denied;
     try {
       const products = db.prepare(`
         SELECT 
@@ -99,8 +110,10 @@ module.exports = (ipcMain, db) => {
     }
   });
 
-  // Get sales trend (last 30 days)
-  ipcMain.handle('get-sales-trend', () => {
+  // Get sales trend (last 30 days) - Analytics page's chart
+  ipcMain.handle('get-sales-trend', (event) => {
+    const denied = checkPermission(event, 'analytics');
+    if (denied) return denied;
     try {
       const trend = db.prepare(`
         SELECT 
@@ -120,6 +133,8 @@ module.exports = (ipcMain, db) => {
 
   // Get category performance
   ipcMain.handle('get-category-performance', (event, { startDate, endDate }) => {
+    const denied = checkPermission(event, 'analytics');
+    if (denied) return denied;
     try {
       const performance = db.prepare(`
         SELECT 
@@ -142,8 +157,11 @@ module.exports = (ipcMain, db) => {
     }
   });
 
-  // Get sales trend grouped by day, week, or month over a custom range
+  // Get sales trend grouped by day, week, or month over a custom range - Dashboard's
+  // chart. Login-only, same reasoning as get-today-sales above.
   ipcMain.handle('get-sales-trend-by-period', (event, { period, startDate, endDate }) => {
+    const denied = checkPermission(event);
+    if (denied) return denied;
     try {
       const groupExpr = period === 'weekly'
         ? "strftime('%Y-W%W', invoice_date)"
@@ -170,6 +188,8 @@ module.exports = (ipcMain, db) => {
 
   // Get a single product's sales performance over a date range
   ipcMain.handle('get-product-performance', (event, { productId, startDate, endDate }) => {
+    const denied = checkPermission(event, 'analytics');
+    if (denied) return denied;
     try {
       const daily = db.prepare(`
         SELECT

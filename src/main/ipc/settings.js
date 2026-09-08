@@ -1,7 +1,7 @@
 const fs = require('fs');
 const path = require('path');
 const { app, dialog } = require('electron');
-const { checkPermission } = require('../session');
+const { checkPermission, requireLoginOrTrusted } = require('../session');
 
 const LOGO_MIME_TYPES = { '.png': 'image/png', '.jpg': 'image/jpeg', '.jpeg': 'image/jpeg', '.gif': 'image/gif', '.webp': 'image/webp' };
 
@@ -39,8 +39,12 @@ module.exports = (ipcMain, db) => {
     }
   });
 
-  // Read the current logo file and return it as a data URL (works uniformly in dev/prod/print window)
-  ipcMain.handle('get-shop-logo', () => {
+  // Read the current logo file and return it as a data URL (works uniformly in dev/prod/print window).
+  // Login-or-trusted, not permission-gated: needed by the Sidebar (any logged-in role)
+  // and by the standalone invoice-print window, which has no login session of its own.
+  ipcMain.handle('get-shop-logo', (event) => {
+    const denied = requireLoginOrTrusted(event);
+    if (denied) return denied;
     try {
       const settings = db.prepare('SELECT logo_path FROM shop_settings WHERE id = 1').get();
       if (!settings?.logo_path || !fs.existsSync(settings.logo_path)) {
@@ -71,8 +75,11 @@ module.exports = (ipcMain, db) => {
     }
   });
 
-  // Get shop settings
-  ipcMain.handle('get-shop-settings', () => {
+  // Get shop settings. Login-or-trusted (see get-shop-logo above) - also needed by
+  // Billing (GST rate) and the invoice-print window.
+  ipcMain.handle('get-shop-settings', (event) => {
+    const denied = requireLoginOrTrusted(event);
+    if (denied) return denied;
     try {
       const settings = db.prepare('SELECT * FROM shop_settings WHERE id = 1').get();
       return settings || {};
@@ -91,8 +98,9 @@ module.exports = (ipcMain, db) => {
       if (existing.count === 0) {
         db.prepare(`
           INSERT INTO shop_settings
-          (shop_name, shop_address, shop_phone, shop_email, gst_number, gst_rate, payment_terms, return_policy)
-          VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+          (shop_name, shop_address, shop_phone, shop_email, gst_number, gst_rate, payment_terms, return_policy,
+           thermal_printing_enabled, thermal_printer_name, thermal_paper_width)
+          VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
         `).run(
           settings.shop_name,
           settings.shop_address,
@@ -101,13 +109,17 @@ module.exports = (ipcMain, db) => {
           settings.gst_number,
           settings.gst_rate || 0,
           settings.payment_terms,
-          settings.return_policy
+          settings.return_policy,
+          settings.thermal_printing_enabled ? 1 : 0,
+          settings.thermal_printer_name || null,
+          settings.thermal_paper_width || 80
         );
       } else {
         db.prepare(`
           UPDATE shop_settings SET
           shop_name = ?, shop_address = ?, shop_phone = ?, shop_email = ?,
-          gst_number = ?, gst_rate = ?, payment_terms = ?, return_policy = ?
+          gst_number = ?, gst_rate = ?, payment_terms = ?, return_policy = ?,
+          thermal_printing_enabled = ?, thermal_printer_name = ?, thermal_paper_width = ?
           WHERE id = 1
         `).run(
           settings.shop_name,
@@ -117,7 +129,10 @@ module.exports = (ipcMain, db) => {
           settings.gst_number,
           settings.gst_rate || 0,
           settings.payment_terms,
-          settings.return_policy
+          settings.return_policy,
+          settings.thermal_printing_enabled ? 1 : 0,
+          settings.thermal_printer_name || null,
+          settings.thermal_paper_width || 80
         );
       }
 
@@ -128,7 +143,9 @@ module.exports = (ipcMain, db) => {
   });
 
   // Get all roles
-  ipcMain.handle('get-roles', () => {
+  ipcMain.handle('get-roles', (event) => {
+    const denied = checkPermission(event, 'admin');
+    if (denied) return denied;
     try {
       const roles = db.prepare('SELECT * FROM roles').all();
       return roles.map(r => ({

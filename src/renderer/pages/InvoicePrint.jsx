@@ -4,6 +4,8 @@ export default function InvoicePrint({ invoiceId }) {
   const [invoice, setInvoice] = useState(null)
   const [shop, setShop] = useState({})
   const [logoUrl, setLogoUrl] = useState(null)
+  const [thermalStatus, setThermalStatus] = useState(null) // null | 'printing' | 'success' | 'error'
+  const [thermalError, setThermalError] = useState('')
 
   useEffect(() => {
     const load = async () => {
@@ -20,36 +22,76 @@ export default function InvoicePrint({ invoiceId }) {
   }, [invoiceId])
 
   useEffect(() => {
-    if (invoice) {
-      const t = setTimeout(() => window.print(), 300)
+    window.ipcRenderer.on('thermal-print-result', (result) => {
+      setThermalStatus(result.success ? 'success' : 'error')
+      if (!result.success) setThermalError(result.message || 'Print failed')
+    })
+  }, [])
+
+  useEffect(() => {
+    if (!invoice) return
+    if (shop.thermal_printing_enabled && shop.thermal_printer_name) {
+      // Direct-to-printer mode: skip the OS print dialog entirely. Main process does the
+      // actual printing once it sees this signal (it re-reads settings itself) and reports
+      // back via 'thermal-print-result' so we can show success/failure here.
+      setThermalStatus('printing')
+      const t = setTimeout(() => window.ipcRenderer.send('invoice-print-ready'), 300)
       return () => clearTimeout(t)
     }
-  }, [invoice])
+    const t = setTimeout(() => window.print(), 300)
+    return () => clearTimeout(t)
+  }, [invoice, shop])
 
   if (!invoice) {
     return <div style={{ padding: 20, fontFamily: 'sans-serif' }}>Loading invoice...</div>
   }
 
+  const paperWidth = Number(shop.thermal_paper_width) || 80
+
   const subtotal = invoice.items.reduce((sum, item) => sum + item.subtotal + (item.discount || 0), 0)
   const itemDiscounts = invoice.items.reduce((sum, item) => sum + (item.discount || 0), 0)
 
+  const isThermalMode = shop.thermal_printing_enabled && shop.thermal_printer_name
+
   return (
-    <div style={{ fontFamily: "'Courier New', monospace", fontSize: 13, color: '#000', padding: 16, maxWidth: 340, margin: '0 auto' }}>
+    <div style={{ fontFamily: "'Courier New', monospace", fontSize: 13, color: '#000', padding: 16, maxWidth: Math.round(340 * (paperWidth / 80)), margin: '0 auto' }}>
       <style>{`
-        @page { size: auto; margin: 6mm; }
+        @page { size: ${paperWidth}mm auto; margin: 3mm; }
         @media print {
           .no-print { display: none !important; }
         }
         body { background: #fff; }
       `}</style>
 
-      <button
-        onClick={() => window.print()}
-        className="no-print"
-        style={{ width: '100%', padding: '8px 0', marginBottom: 16, background: '#2563eb', color: '#fff', border: 'none', borderRadius: 4, cursor: 'pointer', fontFamily: 'sans-serif' }}
-      >
-        Print
-      </button>
+      {isThermalMode ? (
+        <div className="no-print" style={{ marginBottom: 16, fontFamily: 'sans-serif', fontSize: 13 }}>
+          {thermalStatus === 'printing' && (
+            <div style={{ padding: '8px 0', color: '#374151' }}>Sending to {shop.thermal_printer_name}...</div>
+          )}
+          {thermalStatus === 'success' && (
+            <div style={{ padding: '8px 0', color: '#059669' }}>✓ Sent to {shop.thermal_printer_name}</div>
+          )}
+          {thermalStatus === 'error' && (
+            <>
+              <div style={{ padding: '8px 0', color: '#dc2626' }}>✗ Thermal print failed: {thermalError}</div>
+              <button
+                onClick={() => window.print()}
+                style={{ width: '100%', padding: '8px 0', background: '#2563eb', color: '#fff', border: 'none', borderRadius: 4, cursor: 'pointer' }}
+              >
+                Print via dialog instead
+              </button>
+            </>
+          )}
+        </div>
+      ) : (
+        <button
+          onClick={() => window.print()}
+          className="no-print"
+          style={{ width: '100%', padding: '8px 0', marginBottom: 16, background: '#2563eb', color: '#fff', border: 'none', borderRadius: 4, cursor: 'pointer', fontFamily: 'sans-serif' }}
+        >
+          Print
+        </button>
+      )}
 
       <div style={{ textAlign: 'center', marginBottom: 8 }}>
         {logoUrl && (

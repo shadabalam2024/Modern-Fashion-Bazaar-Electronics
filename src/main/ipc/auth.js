@@ -190,7 +190,9 @@ module.exports = (ipcMain, db) => {
   });
 
   // Get all users
-  ipcMain.handle('get-users', () => {
+  ipcMain.handle('get-users', (event) => {
+    const denied = checkPermission(event, 'admin');
+    if (denied) return denied;
     try {
       const users = db.prepare(`
         SELECT u.id, u.username, u.role_id, r.role_name, u.created_at

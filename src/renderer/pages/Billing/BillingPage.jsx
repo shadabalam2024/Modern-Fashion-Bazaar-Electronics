@@ -3,6 +3,7 @@ import { useSelector } from 'react-redux'
 import { Link } from 'react-router-dom'
 import Navbar from '../../components/Navbar'
 import Sidebar from '../../components/Sidebar'
+import { createScanTracker } from '../../utils/scanTracker'
 
 export default function BillingPage() {
   const user = useSelector(state => state.auth.user)
@@ -20,7 +21,9 @@ export default function BillingPage() {
   const [paymentMode, setPaymentMode] = useState('cash')
   const [message, setMessage] = useState('')
   const [error, setError] = useState('')
+  const [scanFlash, setScanFlash] = useState(null)
   const searchInputRef = useRef(null)
+  const scanTrackerRef = useRef(createScanTracker())
 
   const [invoiceHistory, setInvoiceHistory] = useState([])
   const [historySearch, setHistorySearch] = useState('')
@@ -76,8 +79,14 @@ export default function BillingPage() {
     return { ...item, itemDiscount, subtotal: lineTotal - itemDiscount }
   }
 
-  const addToCart = (product) => {
+  const flashScan = (name) => {
+    setScanFlash(name)
+    setTimeout(() => setScanFlash(current => current === name ? null : current), 1200)
+  }
+
+  const addToCart = (product, viaScan = false) => {
     setError('')
+    if (viaScan) flashScan(product.name)
     setCart(prev => {
       const existing = prev.find(item => item.product_id === product.id)
       if (existing) {
@@ -144,9 +153,11 @@ export default function BillingPage() {
   }
 
   const handleSearch = async (value) => {
+    scanTrackerRef.current.onKeystroke()
     setSearchTerm(value)
     if (!value.trim()) {
       setSearchResults([])
+      scanTrackerRef.current.reset()
       return
     }
     const results = await window.ipcRenderer.invoke('search-product', value)
@@ -159,14 +170,20 @@ export default function BillingPage() {
 
     const exact = await window.ipcRenderer.invoke('get-product-by-barcode', searchTerm.trim())
     if (exact) {
-      addToCart(exact)
+      addToCart(exact, true)
+      scanTrackerRef.current.reset()
       return
     }
-    if (searchResults.length > 0) {
-      addToCart(searchResults[0])
-    } else {
+    // No exact barcode match. Only auto-add the top fuzzy match when the input was
+    // typed at scanner speed with a single result - otherwise a person casually
+    // pressing Enter while browsing name-search results could silently add the
+    // wrong item. Ambiguous cases are left for the user to click explicitly.
+    if (searchResults.length === 0) {
       setError(`No product found for "${searchTerm}"`)
+    } else if (scanTrackerRef.current.isScanLike() && searchResults.length === 1) {
+      addToCart(searchResults[0], true)
     }
+    scanTrackerRef.current.reset()
   }
 
   const updateQuantity = (productId, quantity) => {
@@ -316,6 +333,11 @@ export default function BillingPage() {
                     onKeyDown={handleBarcodeEnter}
                     className="w-full px-4 py-2 border rounded"
                   />
+                  {scanFlash && (
+                    <div className="absolute z-20 -top-2 right-0 translate-y-[-100%] bg-green-600 text-white text-sm px-3 py-1 rounded shadow">
+                      ✓ Added: {scanFlash}
+                    </div>
+                  )}
                   {searchResults.length > 0 && (
                     <div className="absolute z-10 w-full bg-white border rounded mt-1 shadow-lg max-h-64 overflow-y-auto">
                       {searchResults.map(p => (

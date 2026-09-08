@@ -87,6 +87,8 @@ module.exports = (ipcMain, db) => {
 
   // Get all purchases
   ipcMain.handle('get-purchases', (event, { limit = 100 }) => {
+    const denied = checkPermission(event, 'purchase');
+    if (denied) return denied;
     try {
       const purchases = db.prepare(`
         SELECT p.*, s.name as supplier_name
@@ -103,7 +105,9 @@ module.exports = (ipcMain, db) => {
   });
 
   // Get suppliers
-  ipcMain.handle('get-suppliers', () => {
+  ipcMain.handle('get-suppliers', (event) => {
+    const denied = checkPermission(event, 'purchase');
+    if (denied) return denied;
     try {
       const suppliers = db.prepare('SELECT * FROM suppliers ORDER BY name').all();
       return suppliers;
@@ -130,6 +134,8 @@ module.exports = (ipcMain, db) => {
 
   // Get purchase details
   ipcMain.handle('get-purchase', (event, purchaseId) => {
+    const denied = checkPermission(event, 'purchase');
+    if (denied) return denied;
     try {
       const purchase = db.prepare('SELECT * FROM purchases WHERE id = ?').get(purchaseId);
       const items = db.prepare(`

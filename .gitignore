@@ -11,3 +11,6 @@ __test_*.js
 # License signing key — never commit. Losing/leaking this lets anyone mint
 # valid license keys for any machine. See tools/generateKeypair.js.
 tools/private-key.pem
+
+# local Claude Code session/scheduler state, not project source
+.claude/

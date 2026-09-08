@@ -1,8 +1,11 @@
 const { checkPermission } = require('../session');
 
 module.exports = (ipcMain, db) => {
-  // Get all products
-  ipcMain.handle('get-products', () => {
+  // Get all products. Login-only: used across Billing, Purchase, and Inventory, each
+  // with a different permission - the common requirement is just being logged in.
+  ipcMain.handle('get-products', (event) => {
+    const denied = checkPermission(event);
+    if (denied) return denied;
     try {
       const products = db.prepare(`
         SELECT p.*, c.name as category_name
@@ -100,6 +103,8 @@ module.exports = (ipcMain, db) => {
 
   // Get a product's cost price history (purchases + manual edits), newest first
   ipcMain.handle('get-cost-price-history', (event, productId) => {
+    const denied = checkPermission(event, 'inventory');
+    if (denied) return denied;
     try {
       const history = db.prepare(`
         SELECT cph.*, s.name as supplier_name
@@ -128,8 +133,11 @@ module.exports = (ipcMain, db) => {
     }
   });
 
-  // Get low stock products
-  ipcMain.handle('get-low-stock-products', () => {
+  // Get low stock products. Login-only: feeds the Dashboard (see analytics.js's
+  // get-today-sales for the same reasoning), which every logged-in role can see.
+  ipcMain.handle('get-low-stock-products', (event) => {
+    const denied = checkPermission(event);
+    if (denied) return denied;
     try {
       const products = db.prepare(`
         SELECT * FROM products
@@ -156,8 +164,10 @@ module.exports = (ipcMain, db) => {
     }
   });
 
-  // Get categories
-  ipcMain.handle('get-categories', () => {
+  // Get categories. Login-only: used by both Inventory and Purchase (new-product forms).
+  ipcMain.handle('get-categories', (event) => {
+    const denied = checkPermission(event);
+    if (denied) return denied;
     try {
       const categories = db.prepare('SELECT * FROM categories ORDER BY name').all();
       return categories;

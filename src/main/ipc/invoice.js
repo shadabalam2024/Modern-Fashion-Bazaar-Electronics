@@ -1,8 +1,10 @@
-const { checkPermission } = require('../session');
+const { checkPermission, requireLoginOrTrusted } = require('../session');
 
 module.exports = (ipcMain, db) => {
-  // Get next bill number
-  ipcMain.handle('get-next-bill-number', () => {
+  // Get next bill number. Login-only: Billing-only in practice, but not sensitive.
+  ipcMain.handle('get-next-bill-number', (event) => {
+    const denied = checkPermission(event);
+    if (denied) return denied;
     try {
       const result = db.prepare('SELECT MAX(bill_number) as maxBill FROM invoices').get();
       const maxBill = result.maxBill ? parseInt(result.maxBill.split('-')[1]) : 0;
@@ -82,8 +84,11 @@ module.exports = (ipcMain, db) => {
     }
   });
 
-  // Get invoice details
+  // Get invoice details. Login-or-trusted: used by Billing (logged-in) and the
+  // standalone invoice-print window, which has no login session of its own.
   ipcMain.handle('get-invoice', (event, invoiceId) => {
+    const denied = requireLoginOrTrusted(event);
+    if (denied) return denied;
     try {
       const invoice = db.prepare(`
         SELECT i.*, c.name as customer_name, c.phone as customer_phone, u.username as created_by_username
@@ -107,6 +112,8 @@ module.exports = (ipcMain, db) => {
 
   // Get all invoices
   ipcMain.handle('get-invoices', (event, { startDate, endDate, limit = 100 }) => {
+    const denied = checkPermission(event, 'billing');
+    if (denied) return denied;
     try {
       let query = `
         SELECT i.*, c.name as customer_name, u.username
@@ -132,8 +139,10 @@ module.exports = (ipcMain, db) => {
     }
   });
 
-  // Search products by barcode or name
+  // Search products by barcode or name. Login-only: used by both Billing and Purchase.
   ipcMain.handle('search-product', (event, query) => {
+    const denied = checkPermission(event);
+    if (denied) return denied;
     try {
       const products = db.prepare(`
         SELECT * FROM products
@@ -147,8 +156,10 @@ module.exports = (ipcMain, db) => {
     }
   });
 
-  // Get product by barcode
+  // Get product by barcode. Login-only: used by both Billing and Purchase (duplicate-barcode check).
   ipcMain.handle('get-product-by-barcode', (event, barcode) => {
+    const denied = checkPermission(event);
+    if (denied) return denied;
     try {
       const product = db.prepare('SELECT * FROM products WHERE barcode = ?').get(barcode);
       return product || null;

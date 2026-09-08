@@ -1,8 +1,11 @@
 const { checkPermission } = require('../session');
 
 module.exports = (ipcMain, db) => {
-  // Get all customers
-  ipcMain.handle('get-customers', () => {
+  // Get all customers. Login-only: used by both Customers (customers permission)
+  // and Billing (billing permission) for customer lookup.
+  ipcMain.handle('get-customers', (event) => {
+    const denied = checkPermission(event);
+    if (denied) return denied;
     try {
       const customers = db.prepare('SELECT * FROM customers ORDER BY name').all();
       return customers;
@@ -35,6 +38,8 @@ module.exports = (ipcMain, db) => {
 
   // Get customer details
   ipcMain.handle('get-customer', (event, customerId) => {
+    const denied = checkPermission(event, 'customers');
+    if (denied) return denied;
     try {
       const customer = db.prepare('SELECT * FROM customers WHERE id = ?').get(customerId);
       
@@ -120,6 +125,8 @@ module.exports = (ipcMain, db) => {
 
   // Get a customer's payment history, with which bill (if any) each payment was applied to
   ipcMain.handle('get-customer-payments', (event, customerId) => {
+    const denied = checkPermission(event, 'customers');
+    if (denied) return denied;
     try {
       const payments = db.prepare(`
         SELECT cp.*, i.bill_number
@@ -136,7 +143,9 @@ module.exports = (ipcMain, db) => {
   });
 
   // Get customers with credit balance
-  ipcMain.handle('get-credit-customers', () => {
+  ipcMain.handle('get-credit-customers', (event) => {
+    const denied = checkPermission(event, 'customers');
+    if (denied) return denied;
     try {
       const customers = db.prepare(`
         SELECT * FROM customers

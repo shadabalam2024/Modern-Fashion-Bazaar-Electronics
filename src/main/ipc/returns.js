@@ -10,6 +10,8 @@ module.exports = (ipcMain, db) => {
 
   // Find an invoice to start a return against, by exact or partial bill number
   ipcMain.handle('find-invoice-for-return', (event, billNumberQuery) => {
+    const denied = checkPermission(event, 'returns');
+    if (denied) return denied;
     try {
       const invoices = db.prepare(`
         SELECT i.*, c.name as customer_name
@@ -27,6 +29,8 @@ module.exports = (ipcMain, db) => {
 
   // Get an invoice's line items with how much of each has already been returned
   ipcMain.handle('get-invoice-return-details', (event, invoiceId) => {
+    const denied = checkPermission(event, 'returns');
+    if (denied) return denied;
     try {
       const invoice = db.prepare(`
         SELECT i.*, c.name as customer_name
@@ -138,7 +142,9 @@ module.exports = (ipcMain, db) => {
   });
 
   // List returns, newest first
-  ipcMain.handle('get-returns', () => {
+  ipcMain.handle('get-returns', (event) => {
+    const denied = checkPermission(event, 'returns');
+    if (denied) return denied;
     try {
       const returns = db.prepare(`
         SELECT r.*, i.bill_number, c.name as customer_name
@@ -155,6 +161,8 @@ module.exports = (ipcMain, db) => {
 
   // Get one return's full detail
   ipcMain.handle('get-return', (event, returnId) => {
+    const denied = checkPermission(event, 'returns');
+    if (denied) return denied;
     try {
       const ret = db.prepare(`
         SELECT r.*, i.bill_number, c.name as customer_name
@@ -179,7 +187,9 @@ module.exports = (ipcMain, db) => {
   });
 
   // Log of returned items that were NOT restocked (damaged/defective/other), newest first
-  ipcMain.handle('get-damage-log', () => {
+  ipcMain.handle('get-damage-log', (event) => {
+    const denied = checkPermission(event, 'returns');
+    if (denied) return denied;
     try {
       const log = db.prepare(`
         SELECT ri.id, ri.quantity, ri.subtotal, ri.disposition,

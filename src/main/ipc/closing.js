@@ -37,6 +37,8 @@ module.exports = (ipcMain, db) => {
 
   // Preview a date before closing: live figures + suggested opening cash (previous day's actual) + whether already closed
   ipcMain.handle('get-closing-preview', (event, date) => {
+    const denied = checkPermission(event, 'daily_closing');
+    if (denied) return denied;
     try {
       const existing = db.prepare('SELECT * FROM daily_closings WHERE closing_date = ?').get(date);
       const previous = db.prepare(`
@@ -96,6 +98,8 @@ module.exports = (ipcMain, db) => {
 
   // Closing history, newest first
   ipcMain.handle('get-closing-history', (event, { limit = 60 } = {}) => {
+    const denied = checkPermission(event, 'daily_closing');
+    if (denied) return denied;
     try {
       const rows = db.prepare(`
         SELECT dc.*, u.username as closed_by_username
