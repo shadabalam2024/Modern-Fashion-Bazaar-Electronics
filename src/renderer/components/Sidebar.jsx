@@ -11,7 +11,7 @@ export default function Sidebar() {
   }, [])
 
   return (
-    <aside className="w-64 bg-gray-900 text-white h-screen p-6">
+    <aside className="w-64 bg-gray-900 text-white h-screen p-6 sticky top-0 overflow-y-auto shrink-0">
       <div className="flex items-center gap-2 mb-8">
         {logoUrl && <img src={logoUrl} alt="Logo" className="w-8 h-8 object-contain rounded bg-white p-0.5" />}
         <h1 className="text-lg font-bold leading-tight">Modern Fashion Bazaar</h1>
