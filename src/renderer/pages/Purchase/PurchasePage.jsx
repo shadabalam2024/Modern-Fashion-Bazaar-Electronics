@@ -35,6 +35,7 @@ export default function PurchasePage() {
     name: '', sku: '', barcode: '', category_id: '', cost_price: '', selling_price: ''
   })
   const [duplicateBarcodeMatch, setDuplicateBarcodeMatch] = useState(null)
+  const [newCategory, setNewCategory] = useState('')
   const [viewingPurchase, setViewingPurchase] = useState(null)
   const newProductBarcodeRef = useRef(null)
 
@@ -68,6 +69,18 @@ export default function PurchasePage() {
     loadPurchases()
     loadCategories()
   }, [])
+
+  const handleAddCategory = async () => {
+    if (!newCategory.trim()) return
+    const result = await window.ipcRenderer.invoke('add-category', newCategory.trim())
+    if (result.success) {
+      await loadCategories()
+      setNewProductForm(f => ({ ...f, category_id: result.categoryId }))
+      setNewCategory('')
+    } else {
+      setError(result.message)
+    }
+  }
 
   const loadCategories = async () => {
     const data = await window.ipcRenderer.invoke('get-categories')
@@ -395,10 +408,21 @@ export default function PurchasePage() {
                   <Field label="Category" className="col-span-2">
                     <select value={newProductForm.category_id}
                       onChange={(e) => setNewProductForm({ ...newProductForm, category_id: e.target.value })}
-                      className="w-full px-3 py-2 border rounded">
+                      className="w-full px-3 py-2 border rounded mb-2">
                       <option value="">No Category</option>
                       {categories.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
                     </select>
+                    <label className="block text-xs text-gray-500 mb-1">New Category</label>
+                    <div className="flex gap-2">
+                      <input
+                        type="text" placeholder="New category name"
+                        value={newCategory} onChange={(e) => setNewCategory(e.target.value)}
+                        className="flex-1 px-3 py-2 border rounded text-sm"
+                      />
+                      <button type="button" onClick={handleAddCategory} className="px-3 py-2 border rounded text-sm hover:bg-gray-50">
+                        Add
+                      </button>
+                    </div>
                   </Field>
                   <Field label="Cost Price">
                     <input required type="number" min="0" step="0.01" placeholder="Cost Price" value={newProductForm.cost_price}
