@@ -19,6 +19,7 @@ export default function InventoryPage() {
   const [adjustReason, setAdjustReason] = useState('')
   const [error, setError] = useState('')
   const [search, setSearch] = useState('')
+  const [sortBy, setSortBy] = useState('stock-desc')
   const [viewingHistoryFor, setViewingHistoryFor] = useState(null)
   const [priceHistory, setPriceHistory] = useState(null)
   const barcodeInputRef = useRef(null)
@@ -148,13 +149,23 @@ export default function InventoryPage() {
     }
   }
 
-  const filteredProducts = products.filter(p => {
-    if (!search.trim()) return true
-    const q = search.trim().toLowerCase()
-    return p.name.toLowerCase().includes(q) ||
-      (p.sku || '').toLowerCase().includes(q) ||
-      (p.barcode || '').toLowerCase().includes(q)
-  })
+  const SORT_OPTIONS = {
+    'stock-desc': { label: 'Most in Stock', sort: (a, b) => b.current_stock - a.current_stock },
+    'stock-asc': { label: 'Least in Stock', sort: (a, b) => a.current_stock - b.current_stock },
+    'newest': { label: 'Newest Added', sort: (a, b) => new Date(b.created_at) - new Date(a.created_at) || b.id - a.id },
+    'oldest': { label: 'Oldest Added', sort: (a, b) => new Date(a.created_at) - new Date(b.created_at) || a.id - b.id },
+    'name': { label: 'Name (A-Z)', sort: (a, b) => a.name.localeCompare(b.name) }
+  }
+
+  const filteredProducts = products
+    .filter(p => {
+      if (!search.trim()) return true
+      const q = search.trim().toLowerCase()
+      return p.name.toLowerCase().includes(q) ||
+        (p.sku || '').toLowerCase().includes(q) ||
+        (p.barcode || '').toLowerCase().includes(q)
+    })
+    .sort(SORT_OPTIONS[sortBy].sort)
 
   const duplicateBarcode = form.barcode.trim()
     ? products.find(p => p.barcode === form.barcode.trim() && p.id !== editingId)
@@ -179,14 +190,30 @@ export default function InventoryPage() {
             </button>
           </div>
 
-          <label className="block text-xs text-gray-500 mb-1">Search</label>
-          <input
-            type="text"
-            placeholder="Search by name, SKU, or barcode..."
-            value={search}
-            onChange={(e) => setSearch(e.target.value)}
-            className="w-full max-w-sm px-4 py-2 border rounded mb-4"
-          />
+          <div className="flex gap-4 mb-4">
+            <div className="flex-1 max-w-sm">
+              <label className="block text-xs text-gray-500 mb-1">Search</label>
+              <input
+                type="text"
+                placeholder="Search by name, SKU, or barcode..."
+                value={search}
+                onChange={(e) => setSearch(e.target.value)}
+                className="w-full px-4 py-2 border rounded"
+              />
+            </div>
+            <div>
+              <label className="block text-xs text-gray-500 mb-1">Sort By</label>
+              <select
+                value={sortBy}
+                onChange={(e) => setSortBy(e.target.value)}
+                className="px-4 py-2 border rounded"
+              >
+                {Object.entries(SORT_OPTIONS).map(([key, { label }]) => (
+                  <option key={key} value={key}>{label}</option>
+                ))}
+              </select>
+            </div>
+          </div>
 
           <div className="bg-white rounded-lg shadow overflow-hidden">
             <table className="w-full">
