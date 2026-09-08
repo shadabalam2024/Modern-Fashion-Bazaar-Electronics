@@ -64,6 +64,11 @@ function openPrintWindow(invoiceId) {
 }
 
 app.on('ready', async () => {
+  // Remove Electron's default menu bar - it binds Ctrl+R/Cmd+R to Reload, which wipes
+  // the app's in-memory login state (no persisted session) and drops the user back to
+  // the Login screen. A POS app has no use for the default File/Edit/View/Window menu anyway.
+  Menu.setApplicationMenu(null);
+
   // Initialize database
   db = new Database();
   db.initialize();
