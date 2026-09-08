@@ -403,7 +403,7 @@ function BackupTab() {
   }
 
   const handleExportCsv = async (backup) => {
-    const result = await window.ipcRenderer.invoke('export-backup-csv', backup.path)
+    const result = await window.ipcRenderer.invoke('export-backup-excel', backup.path)
     if (result.success) {
       setMessage(`Exported to ${result.filePath}`)
       setTimeout(() => setMessage(''), 5000)

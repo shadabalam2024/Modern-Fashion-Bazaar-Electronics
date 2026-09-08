@@ -44,7 +44,7 @@ export default function InventoryPage() {
 
   const handleExportCsv = async () => {
     setExportMessage('')
-    const result = await window.ipcRenderer.invoke('export-inventory-csv')
+    const result = await window.ipcRenderer.invoke('export-inventory-excel')
     if (result.success) {
       setExportError(false)
       setExportMessage(`Exported to ${result.filePath}`)

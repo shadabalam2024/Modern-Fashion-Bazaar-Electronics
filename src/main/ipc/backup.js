@@ -3,7 +3,7 @@ const path = require('path');
 const { app } = require('electron');
 const { dialog } = require('electron');
 const { checkPermission } = require('../session');
-const { productsToCsv } = require('../csvExport');
+const { buildInventoryWorkbook } = require('../excelExport');
 const Database = require('better-sqlite3');
 
 module.exports = (ipcMain, db) => {
@@ -103,9 +103,9 @@ module.exports = (ipcMain, db) => {
     }
   });
 
-  // Export a saved backup's product/inventory data to a CSV file, without touching
-  // the live database - opens the backup file itself, read-only.
-  ipcMain.handle('export-backup-csv', async (event, backupPath) => {
+  // Export a saved backup's inventory + sales + purchase history to a 3-sheet Excel
+  // workbook, without touching the live database - opens the backup file read-only.
+  ipcMain.handle('export-backup-excel', async (event, backupPath) => {
     const denied = checkPermission(event, 'admin');
     if (denied) return denied;
     let backupDb;
@@ -114,26 +114,20 @@ module.exports = (ipcMain, db) => {
         return { success: false, message: 'Backup file not found' };
       }
       backupDb = new Database(backupPath, { readonly: true, fileMustExist: true });
-      const products = backupDb.prepare(`
-        SELECT p.*, c.name as category_name
-        FROM products p
-        LEFT JOIN categories c ON p.category_id = c.id
-        WHERE p.is_custom IS NOT 1
-        ORDER BY p.name
-      `).all();
+      const workbook = buildInventoryWorkbook(backupDb);
       backupDb.close();
 
-      const defaultName = path.basename(backupPath, '.db') + '.csv';
+      const defaultName = path.basename(backupPath, '.db') + '.xlsx';
       const result = await dialog.showSaveDialog({
-        title: 'Export Backup as CSV',
+        title: 'Export Backup to Excel',
         defaultPath: defaultName,
-        filters: [{ name: 'CSV (opens in Excel)', extensions: ['csv'] }]
+        filters: [{ name: 'Excel Workbook', extensions: ['xlsx'] }]
       });
       if (result.canceled || !result.filePath) {
         return { success: false, canceled: true };
       }
 
-      fs.writeFileSync(result.filePath, productsToCsv(products), 'utf8');
+      await workbook.xlsx.writeFile(result.filePath);
       return { success: true, filePath: result.filePath };
     } catch (error) {
       backupDb?.close();

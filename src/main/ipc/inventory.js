@@ -1,7 +1,6 @@
 const { dialog } = require('electron');
-const fs = require('fs');
 const { checkPermission } = require('../session');
-const { productsToCsv } = require('../csvExport');
+const { buildInventoryWorkbook } = require('../excelExport');
 
 module.exports = (ipcMain, db) => {
   // Get all products. Login-only: used across Billing, Purchase, and Inventory, each
@@ -226,30 +225,24 @@ module.exports = (ipcMain, db) => {
     }
   });
 
-  // Export the current inventory to a CSV file (opens directly in Excel) - a save
-  // dialog lets the user pick where to put it.
-  ipcMain.handle('export-inventory-csv', async (event) => {
+  // Export inventory + full sales + full purchase history to a 3-sheet Excel workbook -
+  // a save dialog lets the user pick where to put it.
+  ipcMain.handle('export-inventory-excel', async (event) => {
     const denied = checkPermission(event, 'inventory');
     if (denied) return denied;
     try {
-      const products = db.prepare(`
-        SELECT p.*, c.name as category_name
-        FROM products p
-        LEFT JOIN categories c ON p.category_id = c.id
-        WHERE p.is_custom IS NOT 1
-        ORDER BY p.name
-      `).all();
+      const workbook = buildInventoryWorkbook(db);
 
       const result = await dialog.showSaveDialog({
-        title: 'Export Inventory',
-        defaultPath: `inventory-export-${new Date().toISOString().slice(0, 10)}.csv`,
-        filters: [{ name: 'CSV (opens in Excel)', extensions: ['csv'] }]
+        title: 'Export Inventory, Sales & Purchases',
+        defaultPath: `inventory-export-${new Date().toISOString().slice(0, 10)}.xlsx`,
+        filters: [{ name: 'Excel Workbook', extensions: ['xlsx'] }]
       });
       if (result.canceled || !result.filePath) {
         return { success: false, canceled: true };
       }
 
-      fs.writeFileSync(result.filePath, productsToCsv(products), 'utf8');
+      await workbook.xlsx.writeFile(result.filePath);
       return { success: true, filePath: result.filePath };
     } catch (error) {
       return { success: false, message: error.message };
