@@ -38,6 +38,18 @@ function createWindow() {
 
   if (isDev) mainWindow.webContents.openDevTools();
 
+  // Belt-and-suspenders on top of removing the app menu (which already drops the
+  // Reload/Force-Reload accelerators): Chromium's DevTools frontend has its own
+  // built-in reload shortcuts for the inspected page that are NOT controlled by the
+  // app's Menu at all, so Ctrl+R/Cmd+R/F5/Ctrl+Shift+R could still reset the app's
+  // in-memory login state while DevTools is open (which it always is in dev mode).
+  // Intercept at the input level so none of these can reach the page regardless.
+  mainWindow.webContents.on('before-input-event', (event, input) => {
+    const key = input.key.toLowerCase();
+    const isReloadCombo = (key === 'r' && (input.control || input.meta)) || key === 'f5';
+    if (isReloadCombo) event.preventDefault();
+  });
+
   mainWindow.on('closed', () => {
     mainWindow = null;
   });
