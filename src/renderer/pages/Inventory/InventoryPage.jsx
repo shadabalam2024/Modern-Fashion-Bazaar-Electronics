@@ -20,6 +20,8 @@ export default function InventoryPage() {
   const [error, setError] = useState('')
   const [search, setSearch] = useState('')
   const [sortBy, setSortBy] = useState('stock-desc')
+  const [exportMessage, setExportMessage] = useState('')
+  const [exportError, setExportError] = useState(false)
   const [viewingHistoryFor, setViewingHistoryFor] = useState(null)
   const [priceHistory, setPriceHistory] = useState(null)
   const barcodeInputRef = useRef(null)
@@ -38,6 +40,19 @@ export default function InventoryPage() {
   const handleBarcodeFieldKeyDown = (e) => {
     // Scanners send Enter after typing the code - don't let that submit the whole form
     if (e.key === 'Enter') e.preventDefault()
+  }
+
+  const handleExportCsv = async () => {
+    setExportMessage('')
+    const result = await window.ipcRenderer.invoke('export-inventory-csv')
+    if (result.success) {
+      setExportError(false)
+      setExportMessage(`Exported to ${result.filePath}`)
+      setTimeout(() => setExportMessage(''), 5000)
+    } else if (!result.canceled) {
+      setExportError(true)
+      setExportMessage(result.message || 'Export failed')
+    }
   }
 
   const openPriceHistory = async (product) => {
@@ -182,13 +197,22 @@ export default function InventoryPage() {
         <div className="p-8">
           <div className="flex justify-between items-center mb-6">
             <h1 className="text-3xl font-bold">Inventory</h1>
-            <button
-              onClick={openAddForm}
-              className="bg-blue-600 text-white px-4 py-2 rounded hover:bg-blue-700"
-            >
-              + Add Product
-            </button>
+            <div className="flex gap-3">
+              <button
+                onClick={handleExportCsv}
+                className="border border-gray-300 px-4 py-2 rounded hover:bg-gray-50"
+              >
+                Export to Excel
+              </button>
+              <button
+                onClick={openAddForm}
+                className="bg-blue-600 text-white px-4 py-2 rounded hover:bg-blue-700"
+              >
+                + Add Product
+              </button>
+            </div>
           </div>
+          {exportMessage && <p className={`text-sm mb-4 ${exportError ? 'text-red-600' : 'text-green-600'}`}>{exportMessage}</p>}
 
           <div className="flex gap-4 mb-4">
             <div className="flex-1 max-w-sm">

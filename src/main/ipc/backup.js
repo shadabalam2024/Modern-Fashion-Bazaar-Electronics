@@ -3,6 +3,8 @@ const path = require('path');
 const { app } = require('electron');
 const { dialog } = require('electron');
 const { checkPermission } = require('../session');
+const { productsToCsv } = require('../csvExport');
+const Database = require('better-sqlite3');
 
 module.exports = (ipcMain, db) => {
   // Create backup
@@ -97,6 +99,44 @@ module.exports = (ipcMain, db) => {
       }
       return { success: true };
     } catch (error) {
+      return { success: false, message: error.message };
+    }
+  });
+
+  // Export a saved backup's product/inventory data to a CSV file, without touching
+  // the live database - opens the backup file itself, read-only.
+  ipcMain.handle('export-backup-csv', async (event, backupPath) => {
+    const denied = checkPermission(event, 'admin');
+    if (denied) return denied;
+    let backupDb;
+    try {
+      if (!fs.existsSync(backupPath)) {
+        return { success: false, message: 'Backup file not found' };
+      }
+      backupDb = new Database(backupPath, { readonly: true, fileMustExist: true });
+      const products = backupDb.prepare(`
+        SELECT p.*, c.name as category_name
+        FROM products p
+        LEFT JOIN categories c ON p.category_id = c.id
+        WHERE p.is_custom IS NOT 1
+        ORDER BY p.name
+      `).all();
+      backupDb.close();
+
+      const defaultName = path.basename(backupPath, '.db') + '.csv';
+      const result = await dialog.showSaveDialog({
+        title: 'Export Backup as CSV',
+        defaultPath: defaultName,
+        filters: [{ name: 'CSV (opens in Excel)', extensions: ['csv'] }]
+      });
+      if (result.canceled || !result.filePath) {
+        return { success: false, canceled: true };
+      }
+
+      fs.writeFileSync(result.filePath, productsToCsv(products), 'utf8');
+      return { success: true, filePath: result.filePath };
+    } catch (error) {
+      backupDb?.close();
       return { success: false, message: error.message };
     }
   });

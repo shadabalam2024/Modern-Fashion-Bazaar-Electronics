@@ -402,6 +402,16 @@ function BackupTab() {
     loadBackups()
   }
 
+  const handleExportCsv = async (backup) => {
+    const result = await window.ipcRenderer.invoke('export-backup-csv', backup.path)
+    if (result.success) {
+      setMessage(`Exported to ${result.filePath}`)
+      setTimeout(() => setMessage(''), 5000)
+    } else if (!result.canceled) {
+      setMessage(result.message || 'Export failed')
+    }
+  }
+
   return (
     <div className="bg-white rounded-lg shadow p-6 max-w-2xl">
       <div className="flex justify-between items-center mb-4">
@@ -428,6 +438,7 @@ function BackupTab() {
               <td className="py-2 text-right">{(b.size / 1024).toFixed(0)} KB</td>
               <td className="py-2 text-right space-x-3 whitespace-nowrap">
                 <button onClick={() => handleRestore(b)} className="text-blue-600 hover:underline">Restore</button>
+                <button onClick={() => handleExportCsv(b)} className="text-gray-600 hover:underline">Export to Excel</button>
                 <button onClick={() => handleDelete(b)} className="text-red-600 hover:underline">Delete</button>
               </td>
             </tr>
