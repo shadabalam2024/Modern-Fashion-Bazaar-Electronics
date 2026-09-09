@@ -131,6 +131,12 @@ module.exports = (ipcMain, db) => {
       db.prepare('DELETE FROM products WHERE id = ?').run(productId);
       return { success: true };
     } catch (error) {
+      if (error.code === 'SQLITE_CONSTRAINT_FOREIGNKEY') {
+        return {
+          success: false,
+          message: "This product can't be deleted because it has purchase, sale, or return history - deleting it would break those past records. Set its stock to 0 or edit it instead of deleting it."
+        };
+      }
       return { success: false, message: error.message };
     }
   });
