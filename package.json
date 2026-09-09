@@ -1,6 +1,6 @@
 {
   "name": "electronics-shop-crm",
-  "version": "1.0.4",
+  "version": "1.0.5",
   "description": "Modern Fashion Bazaar - Point of Sale & Inventory Management",
   "main": "src/main/index.js",
   "homepage": "./",
