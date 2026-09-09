@@ -29,6 +29,7 @@ export default function PurchasePage() {
   const [scanFlash, setScanFlash] = useState(null)
   const scanTrackerRef = useRef(createScanTracker())
   const [historySearch, setHistorySearch] = useState('')
+  const [historySortBy, setHistorySortBy] = useState('newest')
   const [categories, setCategories] = useState([])
   const [showNewProductForm, setShowNewProductForm] = useState(false)
   const [newProductForm, setNewProductForm] = useState({
@@ -205,11 +206,21 @@ export default function PurchasePage() {
 
   const total = items.reduce((sum, i) => sum + i.subtotal, 0)
 
-  const filteredPurchases = purchases.filter(p =>
-    !historySearch.trim() ||
-    p.supplier_name.toLowerCase().includes(historySearch.trim().toLowerCase()) ||
-    String(p.id).includes(historySearch.trim())
-  )
+  const PURCHASE_SORT_OPTIONS = {
+    'newest': { label: 'Newest First', sort: (a, b) => new Date(b.purchase_date) - new Date(a.purchase_date) || b.id - a.id },
+    'oldest': { label: 'Oldest First', sort: (a, b) => new Date(a.purchase_date) - new Date(b.purchase_date) || a.id - b.id },
+    'amount-desc': { label: 'Highest Amount', sort: (a, b) => b.total_amount - a.total_amount },
+    'amount-asc': { label: 'Lowest Amount', sort: (a, b) => a.total_amount - b.total_amount },
+    'pending-first': { label: 'Pending First', sort: (a, b) => (a.status === 'received') - (b.status === 'received') }
+  }
+
+  const filteredPurchases = purchases
+    .filter(p =>
+      !historySearch.trim() ||
+      p.supplier_name.toLowerCase().includes(historySearch.trim().toLowerCase()) ||
+      String(p.id).includes(historySearch.trim())
+    )
+    .sort(PURCHASE_SORT_OPTIONS[historySortBy].sort)
 
   const handleAddSupplier = async (e) => {
     e.preventDefault()
@@ -500,15 +511,28 @@ export default function PurchasePage() {
           <div className="bg-white rounded-lg shadow overflow-hidden">
             <div className="flex justify-between items-end p-6 pb-0">
               <h2 className="text-xl font-bold">Purchase History</h2>
-              <Field label="Search">
-                <input
-                  type="text"
-                  placeholder="Search by supplier or #..."
-                  value={historySearch}
-                  onChange={(e) => setHistorySearch(e.target.value)}
-                  className="px-4 py-2 border rounded text-sm w-64"
-                />
-              </Field>
+              <div className="flex gap-4">
+                <Field label="Search">
+                  <input
+                    type="text"
+                    placeholder="Search by supplier or #..."
+                    value={historySearch}
+                    onChange={(e) => setHistorySearch(e.target.value)}
+                    className="px-4 py-2 border rounded text-sm w-64"
+                  />
+                </Field>
+                <Field label="Sort By">
+                  <select
+                    value={historySortBy}
+                    onChange={(e) => setHistorySortBy(e.target.value)}
+                    className="px-4 py-2 border rounded text-sm"
+                  >
+                    {Object.entries(PURCHASE_SORT_OPTIONS).map(([key, { label }]) => (
+                      <option key={key} value={key}>{label}</option>
+                    ))}
+                  </select>
+                </Field>
+              </div>
             </div>
             <table className="w-full mt-4">
               <thead className="bg-gray-100 border-b">
