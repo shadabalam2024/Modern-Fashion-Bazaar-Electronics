@@ -3,6 +3,7 @@ import { useSelector } from 'react-redux'
 import Navbar from '../../components/Navbar'
 import Sidebar from '../../components/Sidebar'
 import { createScanTracker } from '../../utils/scanTracker'
+import useGlobalScanRedirect from '../../hooks/useGlobalScanRedirect'
 
 function Field({ label, className = '', children }) {
   return (
@@ -39,6 +40,7 @@ export default function PurchasePage() {
   const [newCategory, setNewCategory] = useState('')
   const [viewingPurchase, setViewingPurchase] = useState(null)
   const newProductBarcodeRef = useRef(null)
+  const searchInputRef = useRef(null)
 
   const checkDuplicateBarcode = async (barcode) => {
     if (!barcode.trim()) {
@@ -110,25 +112,36 @@ export default function PurchasePage() {
     setSearchResults(results)
   }
 
+  // Shared by the search field's own Enter handler AND by useGlobalScanRedirect (when
+  // a scan lands in some other field entirely - e.g. a Supplier or New Product field -
+  // because that's what had focus; the redirect hook strips it back out of that field
+  // and routes it here instead).
+  const processScannedCode = async (code, { scanLike = true } = {}) => {
+    setSearchTerm(code)
+    const exact = await window.ipcRenderer.invoke('get-product-by-barcode', code)
+    if (exact) {
+      addItem(exact, true)
+      return
+    }
+    const results = await window.ipcRenderer.invoke('search-product', code)
+    if (results.length === 0) {
+      setError(`No product found for "${code}"`)
+      setSearchResults([])
+    } else if (scanLike && results.length === 1) {
+      addItem(results[0], true)
+    } else {
+      setSearchResults(results)
+    }
+  }
+
   const handleBarcodeEnter = async (e) => {
     if (e.key !== 'Enter' || !searchTerm.trim()) return
     e.preventDefault()
-
-    const exact = await window.ipcRenderer.invoke('get-product-by-barcode', searchTerm.trim())
-    if (exact) {
-      addItem(exact, true)
-      scanTrackerRef.current.reset()
-      return
-    }
-    // No exact barcode match. Only auto-add the top fuzzy match when the input was
-    // typed at scanner speed with a single result - see scanTracker.js.
-    if (searchResults.length === 0) {
-      setError(`No product found for "${searchTerm}"`)
-    } else if (scanTrackerRef.current.isScanLike() && searchResults.length === 1) {
-      addItem(searchResults[0], true)
-    }
+    await processScannedCode(searchTerm.trim(), { scanLike: scanTrackerRef.current.isScanLike() })
     scanTrackerRef.current.reset()
   }
+
+  useGlobalScanRedirect(searchInputRef, (code) => processScannedCode(code, { scanLike: true }))
 
   const flashScan = (name) => {
     setScanFlash(name)
@@ -343,6 +356,7 @@ export default function PurchasePage() {
               <div className="flex gap-2 mb-4 items-end">
                 <Field label="Add Product (scan barcode or search)" className="relative flex-1">
                   <input
+                    ref={searchInputRef}
                     type="text"
                     placeholder="Scan barcode or search product to add..."
                     value={searchTerm}

@@ -4,6 +4,7 @@ import { Link } from 'react-router-dom'
 import Navbar from '../../components/Navbar'
 import Sidebar from '../../components/Sidebar'
 import { createScanTracker } from '../../utils/scanTracker'
+import useGlobalScanRedirect from '../../hooks/useGlobalScanRedirect'
 
 export default function BillingPage() {
   const user = useSelector(state => state.auth.user)
@@ -164,27 +165,42 @@ export default function BillingPage() {
     setSearchResults(results)
   }
 
+  // Shared by the search field's own Enter handler AND by useGlobalScanRedirect (when
+  // a scan lands in some other field entirely, e.g. Customer Name, because that's what
+  // had focus - the redirect hook strips it back out of that field and routes it here).
+  const processScannedCode = async (code, { scanLike = true } = {}) => {
+    setSearchTerm(code)
+    const exact = await window.ipcRenderer.invoke('get-product-by-barcode', code)
+    if (exact) {
+      addToCart(exact, true)
+      setSearchTerm('')
+      setSearchResults([])
+      return
+    }
+    const results = await window.ipcRenderer.invoke('search-product', code)
+    // Only auto-add the top fuzzy match when we're confident this was a scanner (not a
+    // person casually pressing Enter while browsing name-search results) - ambiguous
+    // cases are left for the user to click explicitly.
+    if (results.length === 0) {
+      setError(`No product found for "${code}"`)
+      setSearchResults([])
+    } else if (scanLike && results.length === 1) {
+      addToCart(results[0], true)
+      setSearchTerm('')
+      setSearchResults([])
+    } else {
+      setSearchResults(results)
+    }
+  }
+
   const handleBarcodeEnter = async (e) => {
     if (e.key !== 'Enter' || !searchTerm.trim()) return
     e.preventDefault()
-
-    const exact = await window.ipcRenderer.invoke('get-product-by-barcode', searchTerm.trim())
-    if (exact) {
-      addToCart(exact, true)
-      scanTrackerRef.current.reset()
-      return
-    }
-    // No exact barcode match. Only auto-add the top fuzzy match when the input was
-    // typed at scanner speed with a single result - otherwise a person casually
-    // pressing Enter while browsing name-search results could silently add the
-    // wrong item. Ambiguous cases are left for the user to click explicitly.
-    if (searchResults.length === 0) {
-      setError(`No product found for "${searchTerm}"`)
-    } else if (scanTrackerRef.current.isScanLike() && searchResults.length === 1) {
-      addToCart(searchResults[0], true)
-    }
+    await processScannedCode(searchTerm.trim(), { scanLike: scanTrackerRef.current.isScanLike() })
     scanTrackerRef.current.reset()
   }
+
+  useGlobalScanRedirect(searchInputRef, (code) => processScannedCode(code, { scanLike: true }))
 
   const updateQuantity = (productId, quantity) => {
     setError('')
