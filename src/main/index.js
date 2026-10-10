@@ -12,6 +12,7 @@ const settingsHandler = require('./ipc/settings');
 const backupHandler = require('./ipc/backup');
 const returnsHandler = require('./ipc/returns');
 const closingHandler = require('./ipc/closing');
+const demoHandler = require('./ipc/demo');
 const { checkPermission, markTrusted, unmarkTrusted } = require('./session');
 
 let mainWindow;
@@ -121,6 +122,7 @@ app.on('ready', async () => {
   backupHandler(ipcMain, db);
   returnsHandler(ipcMain, db);
   closingHandler(ipcMain, db);
+  demoHandler(ipcMain, db);
 
   ipcMain.handle('print-invoice', (event, invoiceId) => {
     const denied = checkPermission(event, 'billing');

@@ -454,6 +454,61 @@ function BackupTab() {
   )
 }
 
+function DemoDataTab() {
+  const [message, setMessage] = useState('')
+  const [isError, setIsError] = useState(false)
+  const [busy, setBusy] = useState(false)
+  const [confirmText, setConfirmText] = useState('')
+
+  const report = (result, okText) => {
+    setIsError(!result.success)
+    setMessage(result.success ? okText : (result.message || 'Failed'))
+  }
+
+  const handleLoad = async () => {
+    setBusy(true)
+    const result = await window.ipcRenderer.invoke('load-demo-data')
+    report(result, 'Demo data loaded - open Dashboard, Inventory, Customers or Billing to see it')
+    setBusy(false)
+  }
+
+  const handleClear = async () => {
+    if (!confirm('Permanently delete ALL products, customers, suppliers, invoices, purchases, returns and closings? Users, settings and license are kept.')) return
+    setBusy(true)
+    const result = await window.ipcRenderer.invoke('clear-shop-data')
+    report(result, 'All shop data cleared')
+    if (result.success) setConfirmText('')
+    setBusy(false)
+  }
+
+  return (
+    <div className="bg-white rounded-lg shadow p-6 max-w-2xl space-y-6">
+      <div>
+        <h2 className="text-xl font-bold mb-1">Demo Data</h2>
+        <p className="text-sm text-gray-500 mb-3">
+          Fills an empty shop with sample products, customers, suppliers, about three weeks of invoices and a few purchases.
+          Only works when the shop has no data yet.
+        </p>
+        <button onClick={handleLoad} disabled={busy} className="bg-blue-600 text-white px-4 py-2 rounded hover:bg-blue-700 disabled:opacity-50">
+          Load Demo Data
+        </button>
+      </div>
+      <div className="border-t pt-6">
+        <h3 className="font-bold text-red-600 mb-1">Clear All Shop Data</h3>
+        <p className="text-sm text-gray-500 mb-3">
+          Deletes every product, customer, supplier, invoice, purchase, return and closing. Use this to remove demo data before real use. Cannot be undone - create a backup first if unsure.
+        </p>
+        <label className="block text-sm font-medium mb-1">Type DELETE to enable</label>
+        <input value={confirmText} onChange={e => setConfirmText(e.target.value)} className="border rounded px-3 py-2 mr-3" />
+        <button onClick={handleClear} disabled={busy || confirmText !== 'DELETE'} className="bg-red-600 text-white px-4 py-2 rounded hover:bg-red-700 disabled:opacity-50">
+          Clear All Data
+        </button>
+      </div>
+      {message && <p className={`text-sm ${isError ? 'text-red-600' : 'text-green-600'}`}>{message}</p>}
+    </div>
+  )
+}
+
 function UpdatesTab() {
   const { status, version, progress, error, currentVersion, checkForUpdates, installNow } = useAppUpdater()
 
@@ -509,6 +564,7 @@ export default function SettingsPage() {
     { key: 'printer', label: 'Printer' },
     { key: 'users', label: 'Users & Roles' },
     { key: 'backup', label: 'Backup & Restore' },
+    { key: 'demo', label: 'Demo Data' },
     { key: 'updates', label: 'Updates' }
   ]
 
@@ -536,6 +592,7 @@ export default function SettingsPage() {
           {tab === 'printer' && <PrinterTab />}
           {tab === 'users' && <UsersRolesTab />}
           {tab === 'backup' && <BackupTab />}
+          {tab === 'demo' && <DemoDataTab />}
           {tab === 'updates' && <UpdatesTab />}
         </div>
       </div>
