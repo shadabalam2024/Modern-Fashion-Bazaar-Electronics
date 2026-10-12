@@ -86,7 +86,87 @@ function verifyLicenseKey(machineId, licenseKey) {
   return result;
 }
 
+// ---- Password reset by signed code ----
+// The login screen shows a challenge (machineId-nonce). The developer signs it
+// with tools/generateResetCode.js and the customer types the result back in.
+// The nonce is persisted so it survives an app restart, and deleted once used,
+// so each reset code works exactly once and only on this machine.
+function getChallengePath() {
+  return path.join(app.getPath('userData'), 'reset-challenge.json');
+}
+
+function createResetChallenge() {
+  const nonce = crypto.randomBytes(4).toString('hex');
+  fs.writeFileSync(getChallengePath(), JSON.stringify({ nonce, createdAt: new Date().toISOString() }));
+  return `${generateMachineId()}-${nonce}`.toUpperCase();
+}
+
+function verifyResetCode(resetCode) {
+  try {
+    const challengePath = getChallengePath();
+    if (!fs.existsSync(challengePath)) return { valid: false, reason: 'Click "Forgot password" first to get a new request code' };
+    const { nonce } = JSON.parse(fs.readFileSync(challengePath, 'utf8'));
+
+    const [payloadPart, signaturePart] = String(resetCode).trim().split('.');
+    if (!payloadPart || !signaturePart) return { valid: false, reason: 'Malformed reset code' };
+
+    const payloadJson = Buffer.from(payloadPart, 'base64url').toString('utf8');
+    const signature = Buffer.from(signaturePart, 'base64url');
+    if (!crypto.verify('sha256', Buffer.from(payloadJson), PUBLIC_KEY, signature)) {
+      return { valid: false, reason: 'Invalid reset code' };
+    }
+
+    const payload = JSON.parse(payloadJson);
+    if (payload.type !== 'password-reset') return { valid: false, reason: 'Invalid reset code' };
+    if (payload.machineId !== generateMachineId()) return { valid: false, reason: 'This reset code was issued for a different computer' };
+    if (payload.nonce !== nonce) return { valid: false, reason: 'This reset code does not match the current request code. Click "Forgot password" again only if you need a new one' };
+    if (payload.expiresAt && new Date(payload.expiresAt) < new Date()) return { valid: false, reason: 'This reset code has expired' };
+
+    return { valid: true };
+  } catch (error) {
+    return { valid: false, reason: 'Invalid reset code' };
+  }
+}
+
 module.exports = (ipcMain, db) => {
+  // Start a password reset: returns the request code the customer sends to the developer
+  ipcMain.handle('get-reset-challenge', () => {
+    try {
+      return { success: true, challenge: createResetChallenge() };
+    } catch (error) {
+      return { success: false, message: error.message };
+    }
+  });
+
+  // Check a reset code and, if good, list accounts so the customer can pick theirs
+  ipcMain.handle('verify-reset-code', (event, { resetCode }) => {
+    const result = verifyResetCode(resetCode);
+    if (!result.valid) return { success: false, message: result.reason };
+    const users = db.prepare(`
+      SELECT u.id, u.username, r.role_name FROM users u JOIN roles r ON u.role_id = r.id ORDER BY u.id
+    `).all();
+    return { success: true, users };
+  });
+
+  // Set the new password; the code is re-verified and then consumed
+  ipcMain.handle('complete-password-reset', (event, { resetCode, userId, newPassword }) => {
+    try {
+      const result = verifyResetCode(resetCode);
+      if (!result.valid) return { success: false, message: result.reason };
+      if (!newPassword || String(newPassword).length < 4) {
+        return { success: false, message: 'Password must be at least 4 characters' };
+      }
+      const info = db.prepare('UPDATE users SET password_hash = ? WHERE id = ?')
+        .run(bcrypt.hashSync(newPassword, 10), userId);
+      if (info.changes === 0) return { success: false, message: 'User not found' };
+
+      fs.unlinkSync(getChallengePath()); // single use
+      return { success: true };
+    } catch (error) {
+      return { success: false, message: error.message };
+    }
+  });
+
   // Check license on app start
   ipcMain.handle('check-license', () => {
     return checkLicense();
