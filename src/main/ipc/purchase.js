@@ -2,7 +2,7 @@ const { checkPermission } = require('../session');
 
 module.exports = (ipcMain, db) => {
   // Create purchase order
-  ipcMain.handle('create-purchase', (event, { supplierId, items, userId }) => {
+  ipcMain.handle('create-purchase', (event, { supplierId, items, userId, transportCost = 0 }) => {
     const denied = checkPermission(event, 'purchase');
     if (denied) return denied;
     try {
@@ -11,23 +11,32 @@ module.exports = (ipcMain, db) => {
       }
 
       const runPurchase = db.transaction(() => {
-        let totalAmount = 0;
+        const transport = Number(transportCost) || 0;
+        if (transport < 0) throw new Error('Transport cost cannot be negative');
+
+        let itemsTotal = 0;
+        let totalQty = 0;
         for (const item of items) {
-          totalAmount += item.subtotal;
+          itemsTotal += item.subtotal;
+          totalQty += item.quantity;
         }
 
         const purchase = db.prepare(`
-          INSERT INTO purchases (supplier_id, total_amount, created_by)
-          VALUES (?, ?, ?)
-        `).run(supplierId, totalAmount, userId);
+          INSERT INTO purchases (supplier_id, total_amount, transport_cost, created_by)
+          VALUES (?, ?, ?, ?)
+        `).run(supplierId, itemsTotal + transport, transport, userId);
 
         const itemInsert = db.prepare(`
-          INSERT INTO purchase_items (purchase_id, product_id, quantity, unit_cost, subtotal)
-          VALUES (?, ?, ?, ?, ?)
+          INSERT INTO purchase_items (purchase_id, product_id, quantity, unit_cost, subtotal, landed_unit_cost)
+          VALUES (?, ?, ?, ?, ?, ?)
         `);
 
         for (const item of items) {
-          itemInsert.run(purchase.lastInsertRowid, item.product_id, item.quantity, item.unit_cost, item.subtotal);
+          // Transport is shared out in proportion to each line's value (by quantity if
+          // every line is free), then spread over that line's units.
+          const share = itemsTotal > 0 ? item.subtotal / itemsTotal : item.quantity / totalQty;
+          const landedUnitCost = item.unit_cost + (transport * share) / item.quantity;
+          itemInsert.run(purchase.lastInsertRowid, item.product_id, item.quantity, item.unit_cost, item.subtotal, landedUnitCost);
         }
 
         return purchase.lastInsertRowid;
@@ -67,11 +76,12 @@ module.exports = (ipcMain, db) => {
           const product = getProduct.get(item.product_id);
           const newStock = product.current_stock + item.quantity;
           // Weighted average cost: blend existing stock's cost with this batch's cost
+          const batchCost = item.landed_unit_cost ?? item.unit_cost; // includes transport share
           const newCost = newStock > 0
-            ? ((product.current_stock * product.cost_price) + (item.quantity * item.unit_cost)) / newStock
+            ? ((product.current_stock * product.cost_price) + (item.quantity * batchCost)) / newStock
             : product.cost_price;
           updateStockAndCost.run(newStock, newCost, item.product_id);
-          logCostChange.run(item.product_id, product.cost_price, newCost, item.unit_cost, item.quantity, purchaseId);
+          logCostChange.run(item.product_id, product.cost_price, newCost, batchCost, item.quantity, purchaseId);
         }
 
         db.prepare('UPDATE purchases SET status = ? WHERE id = ?').run('received', purchaseId);

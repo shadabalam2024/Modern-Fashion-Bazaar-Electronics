@@ -21,6 +21,7 @@ export default function PurchasePage() {
   const [purchases, setPurchases] = useState([])
   const [supplierId, setSupplierId] = useState('')
   const [items, setItems] = useState([])
+  const [transportCost, setTransportCost] = useState('')
   const [searchTerm, setSearchTerm] = useState('')
   const [searchResults, setSearchResults] = useState([])
   const [showSupplierForm, setShowSupplierForm] = useState(false)
@@ -217,7 +218,16 @@ export default function PurchasePage() {
     setItems(prev => prev.filter(i => i.product_id !== productId))
   }
 
-  const total = items.reduce((sum, i) => sum + i.subtotal, 0)
+  const itemsTotal = items.reduce((sum, i) => sum + i.subtotal, 0)
+  const transport = Math.max(parseFloat(transportCost) || 0, 0)
+  const total = itemsTotal + transport
+  const totalQty = items.reduce((sum, i) => sum + i.quantity, 0)
+
+  // Live preview of the per-unit cost once transport is shared out (same maths as the backend)
+  const landedUnitCost = (item) => {
+    const share = itemsTotal > 0 ? item.subtotal / itemsTotal : item.quantity / (totalQty || 1)
+    return item.unit_cost + (transport * share) / item.quantity
+  }
 
   const PURCHASE_SORT_OPTIONS = {
     'newest': { label: 'Newest First', sort: (a, b) => new Date(b.purchase_date) - new Date(a.purchase_date) || b.id - a.id },
@@ -264,12 +274,14 @@ export default function PurchasePage() {
     const result = await window.ipcRenderer.invoke('create-purchase', {
       supplierId,
       items,
+      transportCost: transport,
       userId: user?.id
     })
 
     if (result.success) {
       setMessage(`Purchase order #${result.purchaseId} created`)
       setItems([])
+      setTransportCost('')
       setSupplierId('')
       loadPurchases()
     } else {
@@ -476,6 +488,7 @@ export default function PurchasePage() {
                     <th className="py-2 text-center">Qty</th>
                     <th className="py-2 text-right">Unit Cost</th>
                     <th className="py-2 text-right">Subtotal</th>
+                    {transport > 0 && <th className="py-2 text-right">Cost with Transport</th>}
                     <th className="py-2"></th>
                   </tr>
                 </thead>
@@ -494,20 +507,35 @@ export default function PurchasePage() {
                           className="w-24 text-right border rounded" />
                       </td>
                       <td className="py-2 text-right">₹{item.subtotal.toFixed(2)}</td>
+                      {transport > 0 && (
+                        <td className="py-2 text-right text-blue-700 font-medium">₹{landedUnitCost(item).toFixed(2)}</td>
+                      )}
                       <td className="py-2 text-right">
                         <button onClick={() => removeItem(item.product_id)} className="text-red-600 hover:underline">Remove</button>
                       </td>
                     </tr>
                   ))}
                   {items.length === 0 && (
-                    <tr><td colSpan="5" className="py-6 text-center text-gray-400">No items added</td></tr>
+                    <tr><td colSpan="6" className="py-6 text-center text-gray-400">No items added</td></tr>
                   )}
                 </tbody>
               </table>
             </div>
 
             <div className="bg-white rounded-lg shadow p-6 h-fit">
-              <div className="flex justify-between text-2xl font-bold mb-4">
+              <div className="flex justify-between text-sm text-gray-600 mb-2">
+                <span>Items total</span>
+                <span>₹{itemsTotal.toFixed(2)}</span>
+              </div>
+              <Field label="Transport cost (shared across items by value)" className="mb-3">
+                <input
+                  type="number" min="0" step="0.01" placeholder="0.00"
+                  value={transportCost}
+                  onChange={(e) => setTransportCost(e.target.value)}
+                  className="w-full px-3 py-2 border rounded"
+                />
+              </Field>
+              <div className="flex justify-between text-2xl font-bold mb-4 border-t pt-3">
                 <span>Total</span>
                 <span>₹{total.toFixed(2)}</span>
               </div>
@@ -614,6 +642,7 @@ export default function PurchasePage() {
                   <th className="py-2 text-center">Qty</th>
                   <th className="py-2 text-right">Unit Cost</th>
                   <th className="py-2 text-right">Subtotal</th>
+                  {viewingPurchase.transport_cost > 0 && <th className="py-2 text-right">Cost with Transport</th>}
                 </tr>
               </thead>
               <tbody>
@@ -624,11 +653,20 @@ export default function PurchasePage() {
                     <td className="py-2 text-center">{item.quantity}</td>
                     <td className="py-2 text-right">₹{item.unit_cost}</td>
                     <td className="py-2 text-right">₹{item.subtotal.toFixed(2)}</td>
+                    {viewingPurchase.transport_cost > 0 && (
+                      <td className="py-2 text-right">₹{(item.landed_unit_cost ?? item.unit_cost).toFixed(2)}</td>
+                    )}
                   </tr>
                 ))}
               </tbody>
             </table>
             <div className="border-t pt-3 space-y-1">
+              {viewingPurchase.transport_cost > 0 && (
+                <div className="flex justify-between text-sm text-gray-600">
+                  <span>Transport</span>
+                  <span>₹{viewingPurchase.transport_cost.toFixed(2)}</span>
+                </div>
+              )}
               <div className="flex justify-between text-lg font-bold">
                 <span>Total</span>
                 <span>₹{viewingPurchase.total_amount.toFixed(2)}</span>
