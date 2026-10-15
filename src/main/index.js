@@ -13,8 +13,8 @@ const backupHandler = require('./ipc/backup');
 const returnsHandler = require('./ipc/returns');
 const closingHandler = require('./ipc/closing');
 const demoHandler = require('./ipc/demo');
-const { checkPermission, markTrusted, unmarkTrusted } = require('./session');
-const { openPdfPreview } = require('./printPreview');
+const { checkPermission, requireLoginOrTrusted, markTrusted, unmarkTrusted } = require('./session');
+const { openPdfPreview, showPdfPreview } = require('./printPreview');
 const { buildInventoryHtml } = require('./inventoryPrint');
 
 let mainWindow;
@@ -147,6 +147,37 @@ app.on('ready', async () => {
     win.webContents.print({ silent: true, deviceName: settings.thermal_printer_name, printBackground: true }, (success, failureReason) => {
       event.sender.send('thermal-print-result', { success, message: success ? undefined : (failureReason || 'Print failed') });
     });
+  });
+
+  // Sent by the invoice-print window: renders its own page to a PDF (A4 invoice, or a
+  // receipt slip sized from settings), shows it in the PDF preview, then closes the
+  // little print window.
+  ipcMain.handle('invoice-preview-pdf', async (event, { contentHeightPx, format }) => {
+    const denied = requireLoginOrTrusted(event);
+    if (denied) return denied;
+    try {
+      const win = BrowserWindow.fromWebContents(event.sender);
+      const settings = db.prepare('SELECT thermal_paper_width FROM shop_settings WHERE id = 1').get();
+      const widthIn = (Number(settings?.thermal_paper_width) || 80) / 25.4;
+      const heightIn = Math.max(Number(contentHeightPx) || 0, 200) / 96;
+      // 'a4' = full-page invoice for a normal printer; otherwise a receipt-width slip
+      const pdf = format === 'a4'
+        ? await event.sender.printToPDF({
+            pageSize: 'A4',
+            printBackground: true,
+            margins: { top: 0.5, bottom: 0.5, left: 0.5, right: 0.5 }
+          })
+        : await event.sender.printToPDF({
+            pageSize: { width: widthIn, height: heightIn },
+            printBackground: true,
+            margins: { top: 0, bottom: 0, left: 0, right: 0 }
+          });
+      showPdfPreview(pdf, 'Invoice - Print Preview');
+      win?.close();
+      return { success: true };
+    } catch (error) {
+      return { success: false, message: error.message };
+    }
   });
 
   // List installed Windows printers, for the Settings printer picker.

@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useRef } from 'react'
 
 export default function InvoicePrint({ invoiceId }) {
   const [invoice, setInvoice] = useState(null)
@@ -6,6 +6,35 @@ export default function InvoicePrint({ invoiceId }) {
   const [logoUrl, setLogoUrl] = useState(null)
   const [thermalStatus, setThermalStatus] = useState(null) // null | 'printing' | 'success' | 'error'
   const [thermalError, setThermalError] = useState('')
+  const [previewError, setPreviewError] = useState('')
+  const receiptRef = useRef(null)
+  const isThermalMode = !!(shop.thermal_printing_enabled && shop.thermal_printer_name)
+
+  // Opens the PDF preview (Print / Save buttons live there). Waits for the logo, then
+  // sends the receipt's height without the on-screen buttons so the PDF page fits it.
+  const openPreview = async () => {
+    setPreviewError('')
+    const el = receiptRef.current
+    if (!el) return
+    await Promise.all([...el.querySelectorAll('img')].map(img => img.complete ? null : new Promise(r => { img.onload = r; img.onerror = r })))
+    // Measure at the real paper width (not this window's width) so text wraps the same
+    // way it will in the PDF and the page height fits.
+    if (!isThermalMode) {
+      const a4 = await window.ipcRenderer.invoke('invoice-preview-pdf', { format: 'a4' })
+      if (a4 && !a4.success) setPreviewError(a4.message || 'Could not open the print preview')
+      return
+    }
+    const noPrint = el.querySelector('.no-print')
+    const buttonsHeight = noPrint ? noPrint.offsetHeight + 16 : 0
+    const saved = { width: el.style.width, maxWidth: el.style.maxWidth, boxSizing: el.style.boxSizing }
+    el.style.width = `${Math.round(((Number(shop.thermal_paper_width) || 80) / 25.4) * 96)}px`
+    el.style.maxWidth = 'none'
+    el.style.boxSizing = 'border-box'
+    const contentHeightPx = el.scrollHeight - buttonsHeight + 24
+    Object.assign(el.style, saved)
+    const result = await window.ipcRenderer.invoke('invoice-preview-pdf', { contentHeightPx })
+    if (result && !result.success) setPreviewError(result.message || 'Could not open the print preview')
+  }
 
   useEffect(() => {
     const load = async () => {
@@ -38,7 +67,7 @@ export default function InvoicePrint({ invoiceId }) {
       const t = setTimeout(() => window.ipcRenderer.send('invoice-print-ready'), 300)
       return () => clearTimeout(t)
     }
-    const t = setTimeout(() => window.print(), 300)
+    const t = setTimeout(openPreview, 300)
     return () => clearTimeout(t)
   }, [invoice, shop])
 
@@ -51,10 +80,114 @@ export default function InvoicePrint({ invoiceId }) {
   const subtotal = invoice.items.reduce((sum, item) => sum + item.subtotal + (item.discount || 0), 0)
   const itemDiscounts = invoice.items.reduce((sum, item) => sum + (item.discount || 0), 0)
 
-  const isThermalMode = shop.thermal_printing_enabled && shop.thermal_printer_name
+  if (!isThermalMode) {
+    const cell = { padding: '6px 8px', borderBottom: '1px solid #ddd' }
+    const head = { ...cell, borderBottom: '2px solid #000', textAlign: 'left' }
+    const money = (n) => `₹${Number(n || 0).toFixed(2)}`
+    const totalRow = (label, value, bold) => (
+      <div style={{ display: 'flex', justifyContent: 'space-between', padding: '3px 0', fontWeight: bold ? 'bold' : 'normal', fontSize: bold ? 16 : 13 }}>
+        <span>{label}</span><span>{value}</span>
+      </div>
+    )
+    const amountPaid = Number(invoice.amount_paid) || 0
+    const balance = invoice.total_amount - amountPaid - (Number(invoice.refunded_amount) || 0)
+    return (
+      <div ref={receiptRef} style={{ fontFamily: 'Arial, Helvetica, sans-serif', fontSize: 13, color: '#000', padding: 16, maxWidth: 780, margin: '0 auto' }}>
+        <style>{`
+          @media print { .no-print { display: none !important; } }
+          body { background: #fff; }
+        `}</style>
+
+        <div className="no-print" style={{ marginBottom: 16, fontSize: 13 }}>
+          {previewError && <div style={{ padding: '0 0 8px', color: '#dc2626' }}>✗ {previewError}</div>}
+          <button
+            onClick={openPreview}
+            style={{ width: '100%', padding: '8px 0', background: '#2563eb', color: '#fff', border: 'none', borderRadius: 4, cursor: 'pointer' }}
+          >
+            Print preview
+          </button>
+        </div>
+
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', borderBottom: '2px solid #000', paddingBottom: 12 }}>
+          <div style={{ display: 'flex', gap: 12, alignItems: 'center' }}>
+            {logoUrl && <img src={logoUrl} alt="Logo" style={{ maxWidth: 70, maxHeight: 70 }} />}
+            <div>
+              <div style={{ fontSize: 22, fontWeight: 'bold' }}>{shop.shop_name || 'Modern Fashion Bazaar'}</div>
+              {shop.shop_address && <div>{shop.shop_address}</div>}
+              {shop.shop_phone && <div>Ph: {shop.shop_phone}</div>}
+              {shop.gst_number && <div>GSTIN: {shop.gst_number}</div>}
+            </div>
+          </div>
+          <div style={{ textAlign: 'right' }}>
+            <div style={{ fontSize: 20, fontWeight: 'bold' }}>INVOICE</div>
+            <div>Bill #: {invoice.bill_number}</div>
+            <div>{new Date(invoice.invoice_date).toLocaleString()}</div>
+          </div>
+        </div>
+
+        <div style={{ margin: '12px 0' }}>
+          {invoice.customer_name && (
+            <div><strong>Customer:</strong> {invoice.customer_name}{invoice.customer_phone ? ` (${invoice.customer_phone})` : ''}</div>
+          )}
+          {invoice.created_by_username && <div><strong>Cashier:</strong> {invoice.created_by_username}</div>}
+        </div>
+
+        <table style={{ width: '100%', borderCollapse: 'collapse' }}>
+          <thead>
+            <tr>
+              <th style={{ ...head, width: 32 }}>#</th>
+              <th style={head}>Item</th>
+              <th style={{ ...head, textAlign: 'center' }}>Qty</th>
+              <th style={{ ...head, textAlign: 'right' }}>Rate</th>
+              <th style={{ ...head, textAlign: 'right' }}>Discount</th>
+              <th style={{ ...head, textAlign: 'right' }}>Amount</th>
+            </tr>
+          </thead>
+          <tbody>
+            {invoice.items.map((item, i) => (
+              <tr key={item.id} style={{ pageBreakInside: 'avoid' }}>
+                <td style={cell}>{i + 1}</td>
+                <td style={cell}>{item.product_name}</td>
+                <td style={{ ...cell, textAlign: 'center' }}>{item.quantity}</td>
+                <td style={{ ...cell, textAlign: 'right' }}>{money(item.unit_price)}</td>
+                <td style={{ ...cell, textAlign: 'right' }}>{item.discount > 0 ? money(item.discount) : '-'}</td>
+                <td style={{ ...cell, textAlign: 'right' }}>{money(item.subtotal)}</td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+
+        <div style={{ display: 'flex', justifyContent: 'flex-end', marginTop: 12, pageBreakInside: 'avoid' }}>
+          <div style={{ width: 280 }}>
+            {totalRow('Subtotal', money(subtotal))}
+            {itemDiscounts > 0 && totalRow('Item Discounts', `-${money(itemDiscounts)}`)}
+            {invoice.discount_amount > 0 && totalRow('Discount', `-${money(invoice.discount_amount)}`)}
+            {invoice.gst_amount > 0 && totalRow(`GST${shop.gst_number ? ` (${shop.gst_number})` : ''}`, money(invoice.gst_amount))}
+            <div style={{ borderTop: '2px solid #000', marginTop: 4 }}>{totalRow('Total', money(invoice.total_amount), true)}</div>
+            {totalRow('Payment Mode', <span style={{ textTransform: 'capitalize' }}>{invoice.payment_mode}</span>)}
+            {invoice.payment_mode === 'credit' && (
+              <>
+                {totalRow('Paid', money(amountPaid))}
+                {totalRow('Balance Due', money(balance), true)}
+              </>
+            )}
+          </div>
+        </div>
+
+        {(shop.payment_terms || shop.return_policy) && (
+          <div style={{ marginTop: 20, fontSize: 11, color: '#333', pageBreakInside: 'avoid' }}>
+            {shop.payment_terms && <div>{shop.payment_terms}</div>}
+            {shop.return_policy && <div style={{ marginTop: 4 }}>{shop.return_policy}</div>}
+          </div>
+        )}
+
+        <div style={{ textAlign: 'center', marginTop: 24, fontSize: 12 }}>Thank you for shopping with us!</div>
+      </div>
+    )
+  }
 
   return (
-    <div style={{ fontFamily: "'Courier New', monospace", fontSize: 13, color: '#000', padding: 16, maxWidth: Math.round(340 * (paperWidth / 80)), margin: '0 auto' }}>
+    <div ref={receiptRef} style={{ fontFamily: "'Courier New', monospace", fontSize: 13, color: '#000', padding: 16, maxWidth: Math.round(340 * (paperWidth / 80)), margin: '0 auto' }}>
       <style>{`
         @page { size: ${paperWidth}mm auto; margin: 3mm; }
         @media print {
@@ -75,22 +208,24 @@ export default function InvoicePrint({ invoiceId }) {
             <>
               <div style={{ padding: '8px 0', color: '#dc2626' }}>✗ Thermal print failed: {thermalError}</div>
               <button
-                onClick={() => window.print()}
+                onClick={openPreview}
                 style={{ width: '100%', padding: '8px 0', background: '#2563eb', color: '#fff', border: 'none', borderRadius: 4, cursor: 'pointer' }}
               >
-                Print via dialog instead
+                Open print preview instead
               </button>
             </>
           )}
         </div>
       ) : (
-        <button
-          onClick={() => window.print()}
-          className="no-print"
-          style={{ width: '100%', padding: '8px 0', marginBottom: 16, background: '#2563eb', color: '#fff', border: 'none', borderRadius: 4, cursor: 'pointer', fontFamily: 'sans-serif' }}
-        >
-          Print
-        </button>
+        <div className="no-print" style={{ marginBottom: 16, fontFamily: 'sans-serif', fontSize: 13 }}>
+          {previewError && <div style={{ padding: '0 0 8px', color: '#dc2626' }}>✗ {previewError}</div>}
+          <button
+            onClick={openPreview}
+            style={{ width: '100%', padding: '8px 0', background: '#2563eb', color: '#fff', border: 'none', borderRadius: 4, cursor: 'pointer' }}
+          >
+            Print preview
+          </button>
+        </div>
       )}
 
       <div style={{ textAlign: 'center', marginBottom: 8 }}>
