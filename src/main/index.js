@@ -14,6 +14,8 @@ const returnsHandler = require('./ipc/returns');
 const closingHandler = require('./ipc/closing');
 const demoHandler = require('./ipc/demo');
 const { checkPermission, markTrusted, unmarkTrusted } = require('./session');
+const { openPdfPreview } = require('./printPreview');
+const { buildInventoryHtml } = require('./inventoryPrint');
 
 let mainWindow;
 let db;
@@ -179,6 +181,30 @@ app.on('ready', async () => {
       </div>
     `;
     return silentPrintHtml(html, printerName);
+  });
+
+  // Inventory stock sheet: the renderer sends only the product ids (already filtered and
+  // sorted as on screen); rows are re-read from the DB so the printout can't be spoofed.
+  ipcMain.handle('print-inventory', async (event, { productIds, filterLabel }) => {
+    const denied = checkPermission(event, 'inventory');
+    if (denied) return denied;
+    try {
+      const ids = (productIds || []).filter(Number.isInteger);
+      if (ids.length === 0) return { success: false, message: 'Nothing to print' };
+      const byId = new Map(db.prepare(`
+        SELECT p.*, c.name AS category_name
+        FROM products p LEFT JOIN categories c ON p.category_id = c.id
+        WHERE p.id IN (${ids.map(() => '?').join(',')})
+      `).all(...ids).map(p => [p.id, p]));
+      const products = ids.map(id => byId.get(id)).filter(Boolean);
+      const shop = db.prepare('SELECT shop_name FROM shop_settings WHERE id = 1').get();
+      return await openPdfPreview(
+        buildInventoryHtml({ shopName: shop?.shop_name, filterLabel, products }),
+        'Inventory - Print Preview'
+      );
+    } catch (error) {
+      return { success: false, message: error.message };
+    }
   });
 
   ipcMain.handle('get-app-version', () => app.getVersion());
