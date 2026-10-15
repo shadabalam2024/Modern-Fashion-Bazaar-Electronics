@@ -24,11 +24,13 @@ export default function InventoryPage() {
   const [exportError, setExportError] = useState(false)
   const [viewingHistoryFor, setViewingHistoryFor] = useState(null)
   const [priceHistory, setPriceHistory] = useState(null)
+  const [shopName, setShopName] = useState('')
   const barcodeInputRef = useRef(null)
 
   useEffect(() => {
     loadProducts()
     loadCategories()
+    window.ipcRenderer.invoke('get-shop-settings').then(s => setShopName(s?.shop_name || ''))
   }, [])
 
   useEffect(() => {
@@ -182,6 +184,12 @@ export default function InventoryPage() {
     })
     .sort(SORT_OPTIONS[sortBy].sort)
 
+  const printTotals = filteredProducts.reduce((t, p) => ({
+    units: t.units + p.current_stock,
+    costValue: t.costValue + p.current_stock * p.cost_price,
+    saleValue: t.saleValue + p.current_stock * p.selling_price
+  }), { units: 0, costValue: 0, saleValue: 0 })
+
   const duplicateBarcode = form.barcode.trim()
     ? products.find(p => p.barcode === form.barcode.trim() && p.id !== editingId)
     : null
@@ -190,7 +198,8 @@ export default function InventoryPage() {
     : null
 
   return (
-    <div className="flex">
+    <>
+    <div className="flex print:hidden">
       <Sidebar />
       <div className="flex-1">
         <Navbar />
@@ -198,6 +207,13 @@ export default function InventoryPage() {
           <div className="flex justify-between items-center mb-6">
             <h1 className="text-3xl font-bold">Inventory</h1>
             <div className="flex gap-3">
+              <button
+                onClick={() => window.print()}
+                disabled={filteredProducts.length === 0}
+                className="border border-gray-300 px-4 py-2 rounded hover:bg-gray-50 disabled:opacity-50"
+              >
+                Print
+              </button>
               <button
                 onClick={handleExportCsv}
                 className="border border-gray-300 px-4 py-2 rounded hover:bg-gray-50"
@@ -512,5 +528,44 @@ export default function InventoryPage() {
         </div>
       )}
     </div>
+
+    {/* Print-only stock sheet: prints whatever the current search/sort shows */}
+    <div className="hidden print:block p-4 text-black">
+      <h1 className="text-2xl font-bold">{shopName || 'Inventory'}</h1>
+      <p className="text-sm mb-1">
+        Inventory list{search.trim() ? ` (filtered: "${search.trim()}")` : ''} · {new Date().toLocaleString()}
+      </p>
+      <table className="w-full text-sm border-collapse mt-3">
+        <thead>
+          <tr className="border-b-2 border-black text-left">
+            <th className="py-1 pr-2">#</th>
+            <th className="py-1 pr-2">Product</th>
+            <th className="py-1 pr-2">SKU</th>
+            <th className="py-1 pr-2">Category</th>
+            <th className="py-1 pr-2 text-right">Stock</th>
+            <th className="py-1 pr-2 text-right">Cost</th>
+            <th className="py-1 text-right">Price</th>
+          </tr>
+        </thead>
+        <tbody>
+          {filteredProducts.map((p, i) => (
+            <tr key={p.id} className="border-b border-gray-400" style={{ breakInside: 'avoid' }}>
+              <td className="py-1 pr-2">{i + 1}</td>
+              <td className="py-1 pr-2">{p.name}</td>
+              <td className="py-1 pr-2">{p.sku || ''}</td>
+              <td className="py-1 pr-2">{p.category_name || '-'}</td>
+              <td className="py-1 pr-2 text-right">{p.current_stock}</td>
+              <td className="py-1 pr-2 text-right">₹{Number(p.cost_price).toFixed(2)}</td>
+              <td className="py-1 text-right">₹{Number(p.selling_price).toFixed(2)}</td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
+      <div className="mt-4 text-sm font-bold space-y-1" style={{ breakInside: 'avoid' }}>
+        <p>Products: {filteredProducts.length} · Total units: {printTotals.units}</p>
+        <p>Stock value at cost: ₹{printTotals.costValue.toFixed(2)} · At selling price: ₹{printTotals.saleValue.toFixed(2)}</p>
+      </div>
+    </div>
+    </>
   )
 }
