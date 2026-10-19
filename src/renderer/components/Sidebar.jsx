@@ -4,6 +4,7 @@ import { useSelector } from 'react-redux'
 
 export default function Sidebar() {
   const permissions = useSelector(state => state.auth.permissions)
+  const isAdmin = useSelector(state => state.auth.user?.role) === 'Admin'
   const [logoUrl, setLogoUrl] = useState(null)
 
   useEffect(() => {
@@ -24,6 +25,7 @@ export default function Sidebar() {
         {permissions.customers && <Link to="/customers" className="block px-4 py-2 rounded hover:bg-gray-800">👥 Customers</Link>}
         {permissions.returns && <Link to="/returns" className="block px-4 py-2 rounded hover:bg-gray-800">↩️ Returns</Link>}
         {permissions.daily_closing && <Link to="/daily-closing" className="block px-4 py-2 rounded hover:bg-gray-800">🧾 Daily Closing</Link>}
+        {isAdmin && <Link to="/ledger" className="block px-4 py-2 rounded hover:bg-gray-800">📒 Ledger</Link>}
         {permissions.analytics && <Link to="/analytics" className="block px-4 py-2 rounded hover:bg-gray-800">📈 Analytics</Link>}
         {permissions.settings && <Link to="/settings" className="block px-4 py-2 rounded hover:bg-gray-800">⚙️ Settings</Link>}
       </nav>

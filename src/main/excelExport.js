@@ -68,4 +68,64 @@ function buildInventoryWorkbook(db) {
   return workbook;
 }
 
-module.exports = { buildInventoryWorkbook };
+// Two sheets: the ledger rows (what the screen shows, with the filter applied) and the summary
+function buildLedgerWorkbook({ from, to, ledger }) {
+  const workbook = new ExcelJS.Workbook();
+  const sourceLabels = {
+    sale: 'Sale', customer_payment: 'Customer payment', purchase: 'Purchase', refund: 'Refund',
+    owner_in: 'Owner money in', owner_out: 'Owner withdrawal', expense: 'Expense'
+  };
+
+  const sheet = workbook.addWorksheet('Ledger');
+  sheet.columns = [
+    { header: 'Date', key: 'date', width: 14 },
+    { header: 'Type', key: 'type', width: 20 },
+    { header: 'Details', key: 'description', width: 44 },
+    { header: 'Mode', key: 'mode', width: 12 },
+    { header: 'Money In', key: 'amt_in', width: 14 },
+    { header: 'Money Out', key: 'amt_out', width: 14 },
+    { header: 'Balance', key: 'balance', width: 14 }
+  ];
+  sheet.getRow(1).font = { bold: true };
+  for (const r of ledger.rows) {
+    sheet.addRow({
+      date: r.d, type: sourceLabels[r.source] || r.source, description: r.description, mode: r.mode,
+      amt_in: r.amt_in || null, amt_out: r.amt_out || null, balance: r.balance
+    });
+  }
+  const totalRow = sheet.addRow({
+    description: ledger.filtered ? `Total (${ledger.filterLabel})` : 'Total',
+    amt_in: ledger.rows.reduce((t, r) => t + r.amt_in, 0),
+    amt_out: ledger.rows.reduce((t, r) => t + r.amt_out, 0)
+  });
+  totalRow.font = { bold: true };
+  sheet.addRow({ description: 'Opening balance', balance: ledger.openingBalance }).font = { italic: true };
+  for (const col of ['amt_in', 'amt_out', 'balance']) sheet.getColumn(col).numFmt = '#,##0.00';
+
+  const s = ledger.summary;
+  const summary = workbook.addWorksheet('Summary');
+  summary.columns = [{ header: 'Item', key: 'item', width: 36 }, { header: 'Amount', key: 'amount', width: 18 }];
+  summary.getRow(1).font = { bold: true };
+  summary.addRows([
+    { item: 'Period', amount: `${from} to ${to}` },
+    { item: 'Opening balance', amount: ledger.openingBalance },
+    { item: 'Money in', amount: s.moneyIn },
+    { item: 'Money out', amount: s.moneyOut },
+    { item: 'Closing balance', amount: ledger.closingBalance },
+    { item: 'Owner added', amount: s.ownerIn },
+    { item: 'Owner withdrew', amount: s.ownerOut },
+    { item: 'Purchases (incl. transport)', amount: s.purchases },
+    { item: 'Net sales (after refunds, before GST)', amount: s.netSales },
+    { item: 'Cost of goods sold', amount: s.costOfGoods },
+    { item: 'Gross profit', amount: s.grossProfit },
+    { item: 'Shop expenses', amount: s.expenses },
+    { item: 'Net profit', amount: s.netProfit },
+    { item: 'Customers owe you (all time)', amount: s.customersOwe }
+  ]);
+  summary.getColumn('amount').numFmt = '#,##0.00';
+  summary.getColumn('amount').alignment = { horizontal: 'right' };
+
+  return workbook;
+}
+
+module.exports = { buildInventoryWorkbook, buildLedgerWorkbook };

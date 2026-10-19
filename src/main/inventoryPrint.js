@@ -51,4 +51,4 @@ function buildInventoryHtml({ shopName, filterLabel, products }) {
   </body></html>`;
 }
 
-module.exports = { buildInventoryHtml };
+module.exports = { buildInventoryHtml, escapeHtml, money };

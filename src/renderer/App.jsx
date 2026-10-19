@@ -13,6 +13,7 @@ import CustomersPage from './pages/Customers/CustomersPage'
 import ReturnsPage from './pages/Returns/ReturnsPage'
 import DailyClosingPage from './pages/DailyClosing/DailyClosingPage'
 import AnalyticsPage from './pages/Analytics/AnalyticsPage'
+import LedgerPage from './pages/Ledger/LedgerPage'
 import SettingsPage from './pages/Settings/SettingsPage'
 import InvoicePrint from './pages/InvoicePrint'
 
@@ -32,6 +33,7 @@ function AuthGate() {
         <Route path="/returns" element={<ReturnsPage />} />
         <Route path="/daily-closing" element={<DailyClosingPage />} />
         <Route path="/analytics" element={<AnalyticsPage />} />
+        <Route path="/ledger" element={<LedgerPage />} />
         <Route path="/settings" element={<SettingsPage />} />
       </Routes>
     </HashRouter>

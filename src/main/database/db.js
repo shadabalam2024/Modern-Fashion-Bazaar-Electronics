@@ -212,6 +212,18 @@ class ShopDatabase {
         FOREIGN KEY (product_id) REFERENCES products(id)
       );
 
+      -- Ledger entries typed in by hand: owner deposits/withdrawals and shop expenses
+      CREATE TABLE IF NOT EXISTS ledger_entries (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        entry_date TEXT NOT NULL,
+        type TEXT NOT NULL,
+        category TEXT,
+        amount REAL NOT NULL,
+        payment_mode TEXT NOT NULL DEFAULT 'cash',
+        notes TEXT,
+        created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+      );
+
       -- Shop Settings table
       CREATE TABLE IF NOT EXISTS shop_settings (
         id INTEGER PRIMARY KEY,

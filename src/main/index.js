@@ -13,6 +13,7 @@ const backupHandler = require('./ipc/backup');
 const returnsHandler = require('./ipc/returns');
 const closingHandler = require('./ipc/closing');
 const demoHandler = require('./ipc/demo');
+const ledgerHandler = require('./ipc/ledger');
 const { checkPermission, requireLoginOrTrusted, markTrusted, unmarkTrusted } = require('./session');
 const { openPdfPreview, showPdfPreview } = require('./printPreview');
 const { buildInventoryHtml } = require('./inventoryPrint');
@@ -125,6 +126,7 @@ app.on('ready', async () => {
   returnsHandler(ipcMain, db);
   closingHandler(ipcMain, db);
   demoHandler(ipcMain, db);
+  ledgerHandler(ipcMain, db);
 
   ipcMain.handle('print-invoice', (event, invoiceId) => {
     const denied = checkPermission(event, 'billing');
