@@ -29,7 +29,13 @@ function buildInventoryWorkbook(db) {
     { header: 'Cost Price', key: 'cost_price', width: 12 },
     { header: 'Selling Price', key: 'selling_price', width: 12 },
     { header: 'Current Stock', key: 'current_stock', width: 14 },
-    { header: 'Min Stock Level', key: 'min_stock_level', width: 14 }
+    { header: 'Min Stock Level', key: 'min_stock_level', width: 14 },
+    { header: 'MRP', key: 'mrp', width: 12 },
+    { header: 'Brand', key: 'brand', width: 16 },
+    { header: 'Size', key: 'size', width: 10 },
+    { header: 'Color', key: 'color', width: 12 },
+    { header: 'HSN Code', key: 'hsn_code', width: 12 },
+    { header: 'Season', key: 'season', width: 12 }
   ], products);
 
   const invoices = db.prepare(`
@@ -53,7 +59,7 @@ function buildInventoryWorkbook(db) {
   ], invoices);
 
   const purchases = db.prepare(`
-    SELECT s.name as supplier_name, p.purchase_date, p.total_amount, p.status
+    SELECT p.*, s.name as supplier_name
     FROM purchases p
     JOIN suppliers s ON p.supplier_id = s.id
     ORDER BY p.purchase_date DESC
@@ -61,6 +67,10 @@ function buildInventoryWorkbook(db) {
   addSheet(workbook, 'Purchases', [
     { header: 'Supplier', key: 'supplier_name', width: 24 },
     { header: 'Date', key: 'purchase_date', width: 20 },
+    { header: 'Supplier Bill No', key: 'supplier_bill_no', width: 18 },
+    { header: 'Discount', key: 'discount_amount', width: 12 },
+    { header: 'GST', key: 'gst_amount', width: 12 },
+    { header: 'Transport', key: 'transport_cost', width: 12 },
     { header: 'Total Amount', key: 'total_amount', width: 14 },
     { header: 'Status', key: 'status', width: 14 }
   ], purchases);
@@ -72,7 +82,7 @@ function buildInventoryWorkbook(db) {
 function buildLedgerWorkbook({ from, to, ledger }) {
   const workbook = new ExcelJS.Workbook();
   const sourceLabels = {
-    sale: 'Sale', customer_payment: 'Customer payment', purchase: 'Purchase', refund: 'Refund',
+    sale: 'Sale', customer_payment: 'Customer payment', purchase: 'Purchase', purchase_return: 'Supplier refund', refund: 'Refund',
     owner_in: 'Owner money in', owner_out: 'Owner withdrawal', expense: 'Expense'
   };
 

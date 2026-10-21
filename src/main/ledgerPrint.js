@@ -4,6 +4,7 @@ const SOURCE_LABELS = {
   sale: 'Sale',
   customer_payment: 'Customer payment',
   purchase: 'Purchase',
+  purchase_return: 'Supplier refund',
   refund: 'Refund',
   owner_in: 'Owner money in',
   owner_out: 'Owner withdrawal',

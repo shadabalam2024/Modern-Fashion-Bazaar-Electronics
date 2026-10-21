@@ -4,7 +4,8 @@ import Sidebar from '../../components/Sidebar'
 
 const emptyForm = {
   name: '', sku: '', barcode: '', category_id: '',
-  cost_price: '', selling_price: '', current_stock: '', min_stock_level: '5'
+  cost_price: '', selling_price: '', current_stock: '', min_stock_level: '5',
+  mrp: '', brand: '', season: '', hsn_code: '', size: '', color: ''
 }
 
 export default function InventoryPage() {
@@ -24,6 +25,8 @@ export default function InventoryPage() {
   const [exportError, setExportError] = useState(false)
   const [viewingHistoryFor, setViewingHistoryFor] = useState(null)
   const [priceHistory, setPriceHistory] = useState(null)
+  const [labelTarget, setLabelTarget] = useState(null) // { title, products: [...], count }
+  const [labelMessage, setLabelMessage] = useState('')
   const barcodeInputRef = useRef(null)
 
   useEffect(() => {
@@ -67,6 +70,36 @@ export default function InventoryPage() {
     }
   }
 
+  const openLabels = (title, products) => {
+    setLabelMessage('')
+    setLabelTarget({ title, products, count: '1' })
+  }
+
+  const handlePrintLabels = async (e) => {
+    e.preventDefault()
+    const count = parseInt(labelTarget.count)
+    if (!(count > 0)) return
+    const result = await window.ipcRenderer.invoke('print-labels', {
+      items: labelTarget.products.map(p => ({ productId: p.id, count }))
+    })
+    if (result.success) {
+      setLabelTarget(null)
+      if (result.assigned) {
+        setExportError(false)
+        setExportMessage(`${result.assigned} product(s) had no barcode, so one was assigned automatically`)
+        setTimeout(() => setExportMessage(''), 6000)
+        loadProducts()
+      }
+    } else {
+      setLabelMessage(result.message || 'Could not print the labels')
+    }
+  }
+
+  const generateBarcode = async () => {
+    const result = await window.ipcRenderer.invoke('get-next-barcodes', { count: 1 })
+    if (result.success) setForm(f => ({ ...f, barcode: result.barcodes[0] }))
+  }
+
   const openPriceHistory = async (product) => {
     setViewingHistoryFor(product)
     const history = await window.ipcRenderer.invoke('get-cost-price-history', product.id)
@@ -99,7 +132,9 @@ export default function InventoryPage() {
       cost_price: product.cost_price,
       selling_price: product.selling_price,
       current_stock: product.current_stock,
-      min_stock_level: product.min_stock_level
+      min_stock_level: product.min_stock_level,
+      mrp: product.mrp ?? '', brand: product.brand || '', season: product.season || '',
+      hsn_code: product.hsn_code || '', size: product.size || '', color: product.color || ''
     })
     setEditingId(product.id)
     setError('')
@@ -130,7 +165,10 @@ export default function InventoryPage() {
       cost_price: parseFloat(form.cost_price),
       selling_price: parseFloat(form.selling_price),
       current_stock: parseInt(form.current_stock) || 0,
-      min_stock_level: parseInt(form.min_stock_level) || 5
+      min_stock_level: parseInt(form.min_stock_level) || 5,
+      mrp: form.mrp === '' ? null : parseFloat(form.mrp),
+      brand: form.brand, season: form.season, hsn_code: form.hsn_code, size: form.size, color: form.color,
+      autoBarcode: !editingId // a new product with no barcode gets the next number
     }
 
     const result = editingId
@@ -218,6 +256,13 @@ export default function InventoryPage() {
                 Print
               </button>
               <button
+                onClick={() => openLabels(`${filteredProducts.length} product(s) shown`, filteredProducts)}
+                disabled={filteredProducts.length === 0}
+                className="border border-gray-300 px-4 py-2 rounded hover:bg-gray-50 disabled:opacity-50"
+              >
+                Barcode Labels
+              </button>
+              <button
                 onClick={handleExportCsv}
                 className="border border-gray-300 px-4 py-2 rounded hover:bg-gray-50"
               >
@@ -287,6 +332,7 @@ export default function InventoryPage() {
                     </td>
                     <td className="px-6 py-4 text-right">₹{p.selling_price}</td>
                     <td className="px-6 py-4 text-right space-x-3 whitespace-nowrap">
+                      <button onClick={() => openLabels(p.name, [p])} className="text-blue-600 hover:underline">Labels</button>
                       <button onClick={() => openAdjustStock(p)} className="text-blue-600 hover:underline">Stock</button>
                       <button onClick={() => openEditForm(p)} className="text-blue-600 hover:underline">Edit</button>
                       <button onClick={() => handleDelete(p)} className="text-red-600 hover:underline">Delete</button>
@@ -334,13 +380,16 @@ export default function InventoryPage() {
                 </div>
                 <div>
                   <label className="block text-xs text-gray-500 mb-1">Barcode (scan or type)</label>
-                  <input
-                    ref={barcodeInputRef}
-                    type="text" placeholder="Scan barcode..."
-                    value={form.barcode} onChange={(e) => setForm({ ...form, barcode: e.target.value })}
-                    onKeyDown={handleBarcodeFieldKeyDown}
-                    className={`w-full px-4 py-2 border rounded ${duplicateBarcode ? 'border-red-500' : ''}`}
-                  />
+                  <div className="flex gap-2">
+                    <input
+                      ref={barcodeInputRef}
+                      type="text" placeholder="Scan or leave blank..."
+                      value={form.barcode} onChange={(e) => setForm({ ...form, barcode: e.target.value })}
+                      onKeyDown={handleBarcodeFieldKeyDown}
+                      className={`flex-1 min-w-0 px-4 py-2 border rounded ${duplicateBarcode ? 'border-red-500' : ''}`}
+                    />
+                    <button type="button" onClick={generateBarcode} className="px-2 border rounded text-xs hover:bg-gray-100">Generate</button>
+                  </div>
                   {duplicateBarcode && (
                     <div className="text-xs mt-1">
                       <p className="text-red-600">Already used by "{duplicateBarcode.name}"</p>
@@ -414,6 +463,53 @@ export default function InventoryPage() {
                   <input
                     type="number" min="0" placeholder="5"
                     value={form.min_stock_level} onChange={(e) => setForm({ ...form, min_stock_level: e.target.value })}
+                    className="w-full px-4 py-2 border rounded"
+                  />
+                </div>
+              </div>
+
+              <p className="text-xs text-gray-500 mb-2">More details (all optional)</p>
+              <div className="grid grid-cols-2 gap-3 mb-4">
+                <div>
+                  <label className="block text-xs text-gray-500 mb-1">MRP</label>
+                  <input
+                    type="number" step="0.01" min="0" placeholder="0.00"
+                    value={form.mrp} onChange={(e) => setForm({ ...form, mrp: e.target.value })}
+                    className="w-full px-4 py-2 border rounded"
+                  />
+                </div>
+                <div>
+                  <label className="block text-xs text-gray-500 mb-1">Brand</label>
+                  <input
+                    type="text" value={form.brand} onChange={(e) => setForm({ ...form, brand: e.target.value })}
+                    className="w-full px-4 py-2 border rounded"
+                  />
+                </div>
+                <div>
+                  <label className="block text-xs text-gray-500 mb-1">Size</label>
+                  <input
+                    type="text" value={form.size} onChange={(e) => setForm({ ...form, size: e.target.value })}
+                    className="w-full px-4 py-2 border rounded"
+                  />
+                </div>
+                <div>
+                  <label className="block text-xs text-gray-500 mb-1">Colour</label>
+                  <input
+                    type="text" value={form.color} onChange={(e) => setForm({ ...form, color: e.target.value })}
+                    className="w-full px-4 py-2 border rounded"
+                  />
+                </div>
+                <div>
+                  <label className="block text-xs text-gray-500 mb-1">HSN Code</label>
+                  <input
+                    type="text" value={form.hsn_code} onChange={(e) => setForm({ ...form, hsn_code: e.target.value })}
+                    className="w-full px-4 py-2 border rounded"
+                  />
+                </div>
+                <div>
+                  <label className="block text-xs text-gray-500 mb-1">Season</label>
+                  <input
+                    type="text" value={form.season} onChange={(e) => setForm({ ...form, season: e.target.value })}
                     className="w-full px-4 py-2 border rounded"
                   />
                 </div>
@@ -528,6 +624,30 @@ export default function InventoryPage() {
               </div>
             )}
           </div>
+        </div>
+      )}
+
+      {labelTarget && (
+        <div className="fixed inset-0 bg-black bg-opacity-40 flex items-center justify-center z-30">
+          <form onSubmit={handlePrintLabels} className="bg-white rounded-lg shadow-lg p-6 w-full max-w-sm">
+            <h2 className="text-xl font-bold mb-1">Barcode Labels</h2>
+            <p className="text-sm text-gray-500 mb-4">{labelTarget.title}</p>
+            <label className="block text-xs text-gray-500 mb-1">Labels per product</label>
+            <input
+              type="number" min="1" max="500" autoFocus required
+              value={labelTarget.count}
+              onChange={(e) => setLabelTarget(t => ({ ...t, count: e.target.value }))}
+              className="w-full px-4 py-2 border rounded mb-2"
+            />
+            <p className="text-xs text-gray-500 mb-4">
+              Prints an A4 sheet of 24 stickers per page. Products without a barcode get the next number automatically.
+            </p>
+            {labelMessage && <p className="text-red-500 text-sm mb-3">{labelMessage}</p>}
+            <div className="flex gap-3">
+              <button type="submit" className="flex-1 bg-blue-600 text-white py-2 rounded hover:bg-blue-700">Preview &amp; Print</button>
+              <button type="button" onClick={() => setLabelTarget(null)} className="flex-1 border py-2 rounded hover:bg-gray-50">Cancel</button>
+            </div>
+          </form>
         </div>
       )}
     </div>

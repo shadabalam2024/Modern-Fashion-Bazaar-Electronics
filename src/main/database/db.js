@@ -212,6 +212,29 @@ class ShopDatabase {
         FOREIGN KEY (product_id) REFERENCES products(id)
       );
 
+      -- Goods returned to a supplier after a purchase was received
+      CREATE TABLE IF NOT EXISTS purchase_returns (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        purchase_id INTEGER NOT NULL,
+        return_date DATETIME DEFAULT CURRENT_TIMESTAMP,
+        amount REAL NOT NULL,
+        reason TEXT,
+        created_by INTEGER,
+        FOREIGN KEY (purchase_id) REFERENCES purchases(id)
+      );
+
+      CREATE TABLE IF NOT EXISTS purchase_return_items (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        return_id INTEGER NOT NULL,
+        purchase_item_id INTEGER NOT NULL,
+        product_id INTEGER NOT NULL,
+        quantity INTEGER NOT NULL,
+        unit_cost REAL NOT NULL,
+        FOREIGN KEY (return_id) REFERENCES purchase_returns(id),
+        FOREIGN KEY (purchase_item_id) REFERENCES purchase_items(id),
+        FOREIGN KEY (product_id) REFERENCES products(id)
+      );
+
       -- Ledger entries typed in by hand: owner deposits/withdrawals and shop expenses
       CREATE TABLE IF NOT EXISTS ledger_entries (
         id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -263,6 +286,23 @@ class ShopDatabase {
     addColumnIfMissing('shop_settings', 'thermal_paper_width', 'INTEGER DEFAULT 80');
     addColumnIfMissing('purchases', 'transport_cost', 'REAL DEFAULT 0');
     addColumnIfMissing('purchase_items', 'landed_unit_cost', 'REAL');
+    addColumnIfMissing('purchase_items', 'mrp', 'REAL');
+    addColumnIfMissing('purchase_items', 'selling_price', 'REAL');
+    addColumnIfMissing('purchase_items', 'returned_qty', 'INTEGER DEFAULT 0');
+    addColumnIfMissing('purchases', 'supplier_bill_no', 'TEXT');
+    addColumnIfMissing('purchases', 'bill_date', 'TEXT');
+    addColumnIfMissing('purchases', 'discount_amount', 'REAL DEFAULT 0');
+    addColumnIfMissing('purchases', 'gst_rate', 'REAL DEFAULT 0');
+    addColumnIfMissing('purchases', 'gst_amount', 'REAL DEFAULT 0');
+    addColumnIfMissing('purchases', 'gst_in_cost', 'INTEGER DEFAULT 0');
+    addColumnIfMissing('purchases', 'round_off', 'REAL DEFAULT 0');
+    addColumnIfMissing('products', 'brand', 'TEXT');
+    addColumnIfMissing('products', 'season', 'TEXT');
+    addColumnIfMissing('products', 'hsn_code', 'TEXT');
+    addColumnIfMissing('products', 'mrp', 'REAL');
+    addColumnIfMissing('products', 'size', 'TEXT');
+    addColumnIfMissing('products', 'color', 'TEXT');
+    addColumnIfMissing('products', 'style_name', 'TEXT');
 
     // Backfill: non-credit invoices are paid in full at sale time
     this.db.exec(`UPDATE invoices SET amount_paid = total_amount WHERE payment_mode != 'credit' AND amount_paid = 0`);

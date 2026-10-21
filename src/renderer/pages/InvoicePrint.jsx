@@ -1,4 +1,5 @@
 import { useState, useEffect, useRef } from 'react'
+import { amountInWords } from '../utils/amountInWords'
 
 export default function InvoicePrint({ invoiceId }) {
   const [invoice, setInvoice] = useState(null)
@@ -173,6 +174,8 @@ export default function InvoicePrint({ invoiceId }) {
             )}
           </div>
         </div>
+
+        <div style={{ marginTop: 12, fontWeight: 'bold', pageBreakInside: 'avoid' }}>{amountInWords(invoice.total_amount)}</div>
 
         {(shop.payment_terms || shop.return_policy) && (
           <div style={{ marginTop: 20, fontSize: 11, color: '#333', pageBreakInside: 'avoid' }}>

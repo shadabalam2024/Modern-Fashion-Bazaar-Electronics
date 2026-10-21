@@ -1,8 +1,23 @@
 const { dialog } = require('electron');
 const { checkPermission } = require('../session');
 const { buildInventoryWorkbook } = require('../excelExport');
+const { nextBarcodes } = require('../barcodes');
+
+const EXTRA_COLUMNS = ['brand', 'season', 'hsn_code', 'mrp', 'size', 'color', 'style_name'];
 
 module.exports = (ipcMain, db) => {
+  const insertProduct = db.prepare(`
+    INSERT INTO products (name, sku, barcode, category_id, cost_price, selling_price, current_stock, min_stock_level,
+      ${EXTRA_COLUMNS.join(', ')})
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ${EXTRA_COLUMNS.map(() => '?').join(', ')})
+  `);
+  // Optional descriptive fields, empty string -> null; mrp must be a number
+  const extraFields = (p) => EXTRA_COLUMNS.map(c => {
+    const v = p[c];
+    if (v === undefined || v === null || v === '') return null;
+    return c === 'mrp' ? Number(v) : String(v).trim();
+  });
+
   // Get all products. Login-only: used across Billing, Purchase, and Inventory, each
   // with a different permission - the common requirement is just being logged in.
   ipcMain.handle('get-products', (event) => {
@@ -43,21 +58,48 @@ module.exports = (ipcMain, db) => {
     const denied = checkPermission(event, 'inventory');
     if (denied) return denied;
     try {
-      const result = db.prepare(`
-        INSERT INTO products (name, sku, barcode, category_id, cost_price, selling_price, current_stock, min_stock_level)
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?)
-      `).run(
+      const barcode = product.barcode || (product.autoBarcode ? nextBarcodes(db, 1)[0] : null);
+      const result = insertProduct.run(
         product.name,
-        product.sku,
-        product.barcode,
-        product.category_id,
+        product.sku || null,
+        barcode,
+        product.category_id || null,
         product.cost_price,
         product.selling_price,
         product.current_stock || 0,
-        product.min_stock_level || 5
+        product.min_stock_level || 5,
+        ...extraFields(product)
       );
 
-      return { success: true, productId: result.lastInsertRowid };
+      return { success: true, productId: result.lastInsertRowid, barcode };
+    } catch (error) {
+      return { success: false, message: error.message };
+    }
+  });
+
+  // One product per size (and colour) of the same style, each with its own barcode and stock.
+  // Names become "Style - Colour - Size" so Billing, receipts and reports show them as-is.
+  ipcMain.handle('add-product-variants', (event, { style, color, sizes, ...product }) => {
+    const denied = checkPermission(event, 'inventory');
+    if (denied) return denied;
+    try {
+      const sizeList = [...new Set((sizes || []).map(s => String(s).trim()).filter(Boolean))];
+      if (!String(style || '').trim()) return { success: false, message: 'Enter a product name' };
+      if (sizeList.length === 0) return { success: false, message: 'Enter at least one size' };
+
+      const created = db.transaction(() => {
+        const barcodes = nextBarcodes(db, sizeList.length);
+        return sizeList.map((size, i) => {
+          const name = [String(style).trim(), String(color || '').trim(), size].filter(Boolean).join(' - ');
+          const result = insertProduct.run(
+            name, null, barcodes[i], product.category_id || null, product.cost_price, product.selling_price,
+            0, product.min_stock_level || 5,
+            ...extraFields({ ...product, size, color: color || null, style_name: String(style).trim() })
+          );
+          return { id: result.lastInsertRowid, name, barcode: barcodes[i], size, cost_price: product.cost_price, selling_price: product.selling_price, mrp: product.mrp ?? null };
+        });
+      })();
+      return { success: true, products: created };
     } catch (error) {
       return { success: false, message: error.message };
     }
@@ -74,7 +116,8 @@ module.exports = (ipcMain, db) => {
         db.prepare(`
           UPDATE products SET
           name = ?, sku = ?, barcode = ?, category_id = ?,
-          cost_price = ?, selling_price = ?, min_stock_level = ?
+          cost_price = ?, selling_price = ?, min_stock_level = ?,
+          ${EXTRA_COLUMNS.map(c => `${c} = ?`).join(', ')}
           WHERE id = ?
         `).run(
           product.name,
@@ -84,6 +127,7 @@ module.exports = (ipcMain, db) => {
           product.cost_price,
           product.selling_price,
           product.min_stock_level,
+          ...extraFields(product),
           id
         );
 

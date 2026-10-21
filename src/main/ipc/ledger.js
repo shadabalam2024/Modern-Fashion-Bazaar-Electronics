@@ -23,6 +23,10 @@ const MOVEMENTS_SQL = `
          '-', 0, p.total_amount
   FROM purchases p JOIN suppliers s ON p.supplier_id = s.id
   UNION ALL
+  SELECT 'purchase_return', pr.id, pr.return_date, DATE(pr.return_date),
+         'Returned to supplier - purchase #' || pr.purchase_id || ' (' || s.name || ')', '-', pr.amount, 0
+  FROM purchase_returns pr JOIN purchases p ON pr.purchase_id = p.id JOIN suppliers s ON p.supplier_id = s.id
+  UNION ALL
   SELECT 'refund', id, return_date, DATE(return_date),
          'Cash refund ' || return_number, 'cash', 0, refund_amount
   FROM returns WHERE refund_mode = 'cash'
@@ -44,7 +48,7 @@ const FILTERS = {
   all: { label: 'All', sources: null },
   sale: { label: 'Sales', sources: ['sale'] },
   customer_payment: { label: 'Customer payments', sources: ['customer_payment'] },
-  purchase: { label: 'Purchases', sources: ['purchase'] },
+  purchase: { label: 'Purchases', sources: ['purchase', 'purchase_return'] },
   expense: { label: 'Expenses', sources: ['expense'] },
   refund: { label: 'Refunds', sources: ['refund'] },
   owner: { label: 'Owner money', sources: ['owner_in', 'owner_out'] }
@@ -113,7 +117,7 @@ function computeLedger(db, from, to) {
         moneyOut: movements.reduce((t, m) => t + m.amt_out, 0),
         ownerIn: sum('owner_in', 'amt_in'),
         ownerOut: sum('owner_out', 'amt_out'),
-        purchases: sum('purchase', 'amt_out'),
+        purchases: sum('purchase', 'amt_out') - sum('purchase_return', 'amt_in'),
         expenses,
         netSales,
         costOfGoods,

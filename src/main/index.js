@@ -17,6 +17,9 @@ const ledgerHandler = require('./ipc/ledger');
 const { checkPermission, requireLoginOrTrusted, markTrusted, unmarkTrusted } = require('./session');
 const { openPdfPreview, showPdfPreview } = require('./printPreview');
 const { buildInventoryHtml } = require('./inventoryPrint');
+const { buildPurchaseHtml, buildPurchaseListHtml } = require('./purchasePrint');
+const { buildLabelsHtml } = require('./labelsPrint');
+const { nextBarcodes } = require('./barcodes');
 
 let mainWindow;
 let db;
@@ -235,6 +238,83 @@ app.on('ready', async () => {
         buildInventoryHtml({ shopName: shop?.shop_name, filterLabel, products }),
         'Inventory - Print Preview'
       );
+    } catch (error) {
+      return { success: false, message: error.message };
+    }
+  });
+
+  // Goods-receipt print of one purchase
+  ipcMain.handle('print-purchase', async (event, purchaseId) => {
+    const denied = checkPermission(event, 'purchase');
+    if (denied) return denied;
+    try {
+      const purchase = db.prepare(`
+        SELECT p.*, s.name AS supplier_name, s.phone AS supplier_phone, s.address AS supplier_address
+        FROM purchases p JOIN suppliers s ON p.supplier_id = s.id WHERE p.id = ?
+      `).get(purchaseId);
+      if (!purchase) return { success: false, message: 'Purchase not found' };
+      purchase.items = db.prepare(`
+        SELECT pi.*, p.name AS product_name, p.sku, p.barcode
+        FROM purchase_items pi JOIN products p ON pi.product_id = p.id WHERE pi.purchase_id = ? ORDER BY pi.id
+      `).all(purchaseId);
+      const shop = db.prepare('SELECT shop_name FROM shop_settings WHERE id = 1').get();
+      return await openPdfPreview(buildPurchaseHtml({ shopName: shop?.shop_name, purchase }), 'Purchase - Print Preview');
+    } catch (error) {
+      return { success: false, message: error.message };
+    }
+  });
+
+  // Summary list: the renderer sends the ids in the order shown; rows are re-read from the DB
+  ipcMain.handle('print-purchase-list', async (event, { purchaseIds, filterLabel }) => {
+    const denied = checkPermission(event, 'purchase');
+    if (denied) return denied;
+    try {
+      const ids = (purchaseIds || []).filter(Number.isInteger);
+      if (ids.length === 0) return { success: false, message: 'Nothing to print' };
+      const byId = new Map(db.prepare(`
+        SELECT p.*, s.name AS supplier_name FROM purchases p JOIN suppliers s ON p.supplier_id = s.id
+        WHERE p.id IN (${ids.map(() => '?').join(',')})
+      `).all(...ids).map(p => [p.id, p]));
+      const purchases = ids.map(id => byId.get(id)).filter(Boolean);
+      const shop = db.prepare('SELECT shop_name FROM shop_settings WHERE id = 1').get();
+      return await openPdfPreview(buildPurchaseListHtml({ shopName: shop?.shop_name, purchases, filterLabel }), 'Purchases - Print Preview');
+    } catch (error) {
+      return { success: false, message: error.message };
+    }
+  });
+
+  // Barcode stickers. items: [{ productId, count }]. A product with no barcode gets the next
+  // free number first (saved on the product), since a sticker without one is useless.
+  ipcMain.handle('print-labels', async (event, { items }) => {
+    const denied = checkPermission(event, 'inventory');
+    if (denied) return denied;
+    try {
+      const wanted = (items || []).filter(i => Number.isInteger(i.productId) && Number(i.count) > 0);
+      if (wanted.length === 0) return { success: false, message: 'Nothing to print' };
+      if (wanted.reduce((t, i) => t + Number(i.count), 0) > 2000) return { success: false, message: 'That is too many labels at once (limit 2000)' };
+
+      let assigned = 0;
+      const labels = db.transaction(() => {
+        const out = [];
+        for (const item of wanted) {
+          const p = db.prepare('SELECT id, name, barcode, mrp, selling_price FROM products WHERE id = ?').get(item.productId);
+          if (!p) continue;
+          let barcode = p.barcode;
+          if (!barcode) {
+            barcode = nextBarcodes(db, 1)[0];
+            db.prepare('UPDATE products SET barcode = ? WHERE id = ?').run(barcode, p.id);
+            assigned++;
+          }
+          for (let n = 0; n < Number(item.count); n++) out.push({ name: p.name, barcode, mrp: p.mrp, price: p.selling_price });
+        }
+        return out;
+      })();
+
+      if (labels.length === 0) return { success: false, message: 'Nothing to print' };
+      const shop = db.prepare('SELECT shop_name FROM shop_settings WHERE id = 1').get();
+      const result = await openPdfPreview(buildLabelsHtml({ shopName: shop?.shop_name, labels }), 'Barcode Labels - Print Preview',
+        { margins: { top: 0, bottom: 0, left: 0, right: 0 }, footer: false });
+      return { ...result, assigned, total: labels.length };
     } catch (error) {
       return { success: false, message: error.message };
     }

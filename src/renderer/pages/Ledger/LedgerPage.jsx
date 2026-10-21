@@ -14,6 +14,7 @@ const SOURCE_LABELS = {
   sale: 'Sale',
   customer_payment: 'Customer payment',
   purchase: 'Purchase',
+  purchase_return: 'Supplier refund',
   refund: 'Refund',
   owner_in: 'Owner money in',
   owner_out: 'Owner withdrawal',
@@ -25,7 +26,7 @@ const FILTERS = {
   all: { label: 'All', sources: null },
   sale: { label: 'Sales', sources: ['sale'] },
   customer_payment: { label: 'Customer payments', sources: ['customer_payment'] },
-  purchase: { label: 'Purchases', sources: ['purchase'] },
+  purchase: { label: 'Purchases', sources: ['purchase', 'purchase_return'] },
   expense: { label: 'Expenses', sources: ['expense'] },
   refund: { label: 'Refunds', sources: ['refund'] },
   owner: { label: 'Owner money', sources: ['owner_in', 'owner_out'] }
