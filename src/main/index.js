@@ -228,7 +228,11 @@ app.on('ready', async () => {
       const ids = (productIds || []).filter(Number.isInteger);
       if (ids.length === 0) return { success: false, message: 'Nothing to print' };
       const byId = new Map(db.prepare(`
-        SELECT p.*, c.name AS category_name
+        SELECT p.*, c.name AS category_name,
+          (SELECT pi.landed_unit_cost FROM purchase_items pi
+             JOIN purchases pu ON pu.id = pi.purchase_id
+            WHERE pi.product_id = p.id AND pu.status = 'received' AND pi.landed_unit_cost IS NOT NULL
+            ORDER BY pu.id DESC, pi.id DESC LIMIT 1) AS landed_cost
         FROM products p LEFT JOIN categories c ON p.category_id = c.id
         WHERE p.id IN (${ids.map(() => '?').join(',')})
       `).all(...ids).map(p => [p.id, p]));

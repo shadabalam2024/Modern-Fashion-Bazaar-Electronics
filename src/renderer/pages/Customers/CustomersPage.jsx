@@ -11,7 +11,7 @@ function Field({ label, className = '', children }) {
   )
 }
 
-const emptyForm = { name: '', phone: '', email: '', address: '', is_recurring: false }
+const emptyForm = { name: '', phone: '', email: '', address: '', gstin: '', is_recurring: false }
 
 export default function CustomersPage() {
   const [customers, setCustomers] = useState([])
@@ -49,6 +49,7 @@ export default function CustomersPage() {
       phone: customer.phone || '',
       email: customer.email || '',
       address: customer.address || '',
+      gstin: customer.gstin || '',
       is_recurring: !!customer.is_recurring
     })
     setEditingId(customer.id)
@@ -206,6 +207,13 @@ export default function CustomersPage() {
                 <textarea
                   placeholder="Address"
                   value={form.address} onChange={(e) => setForm({ ...form, address: e.target.value })}
+                  className="w-full px-4 py-2 border rounded"
+                />
+              </Field>
+              <Field label="GSTIN (optional, shown on their bill)" className="mb-3">
+                <input
+                  placeholder="e.g. 10AMLPA3987H2Z5"
+                  value={form.gstin} onChange={(e) => setForm({ ...form, gstin: e.target.value.toUpperCase() })}
                   className="w-full px-4 py-2 border rounded"
                 />
               </Field>

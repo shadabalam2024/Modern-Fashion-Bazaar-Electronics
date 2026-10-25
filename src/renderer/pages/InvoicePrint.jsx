@@ -1,5 +1,6 @@
 import { useState, useEffect, useRef } from 'react'
 import { amountInWords } from '../utils/amountInWords'
+import { invoiceTaxBreakup } from '../utils/invoiceTax'
 
 export default function InvoicePrint({ invoiceId }) {
   const [invoice, setInvoice] = useState(null)
@@ -82,18 +83,26 @@ export default function InvoicePrint({ invoiceId }) {
   const itemDiscounts = invoice.items.reduce((sum, item) => sum + (item.discount || 0), 0)
 
   if (!isThermalMode) {
-    const cell = { padding: '6px 8px', borderBottom: '1px solid #ddd' }
-    const head = { ...cell, borderBottom: '2px solid #000', textAlign: 'left' }
-    const money = (n) => `₹${Number(n || 0).toFixed(2)}`
-    const totalRow = (label, value, bold) => (
-      <div style={{ display: 'flex', justifyContent: 'space-between', padding: '3px 0', fontWeight: bold ? 'bold' : 'normal', fontSize: bold ? 16 : 13 }}>
+    const tax = invoiceTaxBreakup(invoice)
+    const hasHsn = tax.lines.some(l => l.hsn_code)
+    const hasItemDiscount = tax.lines.some(l => l.discount > 0)
+    const money = (n) => Number(n || 0).toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })
+    const th = { padding: '6px 6px', borderBottom: '2px solid #000', borderTop: '1px solid #000', textAlign: 'left', fontSize: 11, letterSpacing: 0.3 }
+    const td = { padding: '7px 6px', verticalAlign: 'top', borderBottom: '1px solid #e5e5e5' }
+    const right = { textAlign: 'right' }
+    const amountPaid = Number(invoice.amount_paid) || 0
+    const balance = invoice.total_amount - amountPaid - (Number(invoice.refunded_amount) || 0)
+    const row = (label, value, strong) => (
+      <div style={{ display: 'flex', justifyContent: 'space-between', padding: '3px 0', fontWeight: strong ? 'bold' : 'normal', fontSize: strong ? 14 : 12 }}>
         <span>{label}</span><span>{value}</span>
       </div>
     )
-    const amountPaid = Number(invoice.amount_paid) || 0
-    const balance = invoice.total_amount - amountPaid - (Number(invoice.refunded_amount) || 0)
+    const hasBank = shop.bank_account_no || shop.bank_name || shop.bank_ifsc || shop.bank_account_name
+    const title = shop.gst_number ? 'TAX INVOICE' : 'INVOICE'
+    const billTo = invoice.customer_name || 'Walk-in Customer'
+
     return (
-      <div ref={receiptRef} style={{ fontFamily: 'Arial, Helvetica, sans-serif', fontSize: 13, color: '#000', padding: 16, maxWidth: 780, margin: '0 auto' }}>
+      <div ref={receiptRef} style={{ fontFamily: 'Arial, Helvetica, sans-serif', fontSize: 12, color: '#000', padding: 16, maxWidth: 780, margin: '0 auto' }}>
         <style>{`
           @media print { .no-print { display: none !important; } }
           body { background: #fff; }
@@ -109,82 +118,121 @@ export default function InvoicePrint({ invoiceId }) {
           </button>
         </div>
 
-        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', borderBottom: '2px solid #000', paddingBottom: 12 }}>
-          <div style={{ display: 'flex', gap: 12, alignItems: 'center' }}>
+        <div style={{ display: 'flex', justifyContent: 'space-between', gap: 16 }}>
+          <div style={{ display: 'flex', gap: 12, alignItems: 'flex-start', flex: 1 }}>
             {logoUrl && <img src={logoUrl} alt="Logo" style={{ maxWidth: 70, maxHeight: 70 }} />}
-            <div>
-              <div style={{ fontSize: 22, fontWeight: 'bold' }}>{shop.shop_name || 'Modern Fashion Bazaar'}</div>
-              {shop.shop_address && <div>{shop.shop_address}</div>}
-              {shop.shop_phone && <div>Ph: {shop.shop_phone}</div>}
-              {shop.gst_number && <div>GSTIN: {shop.gst_number}</div>}
+            <div style={{ lineHeight: 1.45 }}>
+              <div style={{ fontSize: 17, fontWeight: 'bold', textTransform: 'uppercase' }}>{shop.shop_name || 'Modern Fashion Bazaar'}</div>
+              {shop.shop_address && <div style={{ whiteSpace: 'pre-line' }}>{shop.shop_address}</div>}
+              {shop.gst_number && <div><strong>GSTIN:</strong> {shop.gst_number}</div>}
+              {shop.pan_number && <div><strong>PAN:</strong> {shop.pan_number}</div>}
+              {shop.shop_phone && <div><strong>Mobile:</strong> {shop.shop_phone}</div>}
+              {shop.shop_email && <div><strong>Email:</strong> {shop.shop_email}</div>}
             </div>
           </div>
-          <div style={{ textAlign: 'right' }}>
-            <div style={{ fontSize: 20, fontWeight: 'bold' }}>INVOICE</div>
-            <div>Bill #: {invoice.bill_number}</div>
-            <div>{new Date(invoice.invoice_date).toLocaleString()}</div>
+          <div style={{ width: 270 }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 6 }}>
+              <span style={{ fontSize: 16, fontWeight: 'bold' }}>{title}</span>
+              <span style={{ border: '1px solid #555', padding: '2px 8px', fontSize: 9, letterSpacing: 0.5 }}>ORIGINAL FOR RECIPIENT</span>
+            </div>
+            {row('Invoice No.', invoice.bill_number)}
+            {row('Invoice Date', new Date(invoice.invoice_date).toLocaleDateString())}
+            {row('Payment Mode', <span style={{ textTransform: 'capitalize' }}>{invoice.payment_mode}</span>)}
+            {invoice.created_by_username && row('Cashier', invoice.created_by_username)}
           </div>
         </div>
 
-        <div style={{ margin: '12px 0' }}>
-          {invoice.customer_name && (
-            <div><strong>Customer:</strong> {invoice.customer_name}{invoice.customer_phone ? ` (${invoice.customer_phone})` : ''}</div>
-          )}
-          {invoice.created_by_username && <div><strong>Cashier:</strong> {invoice.created_by_username}</div>}
+        <div style={{ margin: '14px 0', lineHeight: 1.5, borderTop: '1px solid #000', paddingTop: 8 }}>
+          <div style={{ fontSize: 10, color: '#444', letterSpacing: 0.5 }}>BILL TO</div>
+          <div style={{ fontWeight: 'bold', textTransform: 'uppercase' }}>{billTo}</div>
+          {invoice.customer_address && <div style={{ whiteSpace: 'pre-line' }}>{invoice.customer_address}</div>}
+          {invoice.customer_phone && <div>Mobile: {invoice.customer_phone}</div>}
+          {invoice.customer_gstin && <div>GSTIN: {invoice.customer_gstin}</div>}
+          {shop.place_of_supply && <div>Place of Supply: {shop.place_of_supply}</div>}
         </div>
 
         <table style={{ width: '100%', borderCollapse: 'collapse' }}>
           <thead>
             <tr>
-              <th style={{ ...head, width: 32 }}>#</th>
-              <th style={head}>Item</th>
-              <th style={{ ...head, textAlign: 'center' }}>Qty</th>
-              <th style={{ ...head, textAlign: 'right' }}>Rate</th>
-              <th style={{ ...head, textAlign: 'right' }}>Discount</th>
-              <th style={{ ...head, textAlign: 'right' }}>Amount</th>
+              <th style={{ ...th, width: 34 }}>S.NO</th>
+              <th style={th}>ITEMS</th>
+              {hasHsn && <th style={th}>HSN</th>}
+              <th style={{ ...th, ...right }}>QTY.</th>
+              <th style={{ ...th, ...right }}>RATE</th>
+              {hasItemDiscount && <th style={{ ...th, ...right }}>DISC.</th>}
+              <th style={{ ...th, ...right }}>TAX</th>
+              <th style={{ ...th, ...right }}>AMOUNT</th>
             </tr>
           </thead>
           <tbody>
-            {invoice.items.map((item, i) => (
-              <tr key={item.id} style={{ pageBreakInside: 'avoid' }}>
-                <td style={cell}>{i + 1}</td>
-                <td style={cell}>{item.product_name}</td>
-                <td style={{ ...cell, textAlign: 'center' }}>{item.quantity}</td>
-                <td style={{ ...cell, textAlign: 'right' }}>{money(item.unit_price)}</td>
-                <td style={{ ...cell, textAlign: 'right' }}>{item.discount > 0 ? money(item.discount) : '-'}</td>
-                <td style={{ ...cell, textAlign: 'right' }}>{money(item.subtotal)}</td>
+            {tax.lines.map((l, i) => (
+              <tr key={l.id} style={{ pageBreakInside: 'avoid' }}>
+                <td style={td}>{i + 1}</td>
+                <td style={td}>{l.product_name}</td>
+                {hasHsn && <td style={td}>{l.hsn_code || ''}</td>}
+                <td style={{ ...td, ...right, whiteSpace: 'nowrap' }}>{l.quantity} PCS</td>
+                <td style={{ ...td, ...right }}>{money(l.rateWithoutTax)}</td>
+                {hasItemDiscount && <td style={{ ...td, ...right }}>{l.discount > 0 ? money(l.discount) : '-'}</td>}
+                <td style={{ ...td, ...right }}>
+                  {money(l.tax)}
+                  <div style={{ fontSize: 9, color: '#777' }}>({tax.rate}%)</div>
+                </td>
+                <td style={{ ...td, ...right }}>{money(l.amount)}</td>
               </tr>
             ))}
+            <tr style={{ fontWeight: 'bold', pageBreakInside: 'avoid' }}>
+              <td style={{ padding: '8px 6px', borderTop: '2px solid #000' }} colSpan={hasHsn ? 3 : 2}>SUBTOTAL</td>
+              <td style={{ padding: '8px 6px', borderTop: '2px solid #000', ...right }}>{tax.qtyTotal}</td>
+              <td style={{ padding: '8px 6px', borderTop: '2px solid #000' }} colSpan={hasItemDiscount ? 2 : 1}></td>
+              <td style={{ padding: '8px 6px', borderTop: '2px solid #000', ...right }}>{tax.taxColumnTotal != null ? `₹${money(tax.taxColumnTotal)}` : ''}</td>
+              <td style={{ padding: '8px 6px', borderTop: '2px solid #000', ...right }}>₹{money(tax.amountsTotal)}</td>
+            </tr>
           </tbody>
         </table>
 
-        <div style={{ display: 'flex', justifyContent: 'flex-end', marginTop: 12, pageBreakInside: 'avoid' }}>
-          <div style={{ width: 280 }}>
-            {totalRow('Subtotal', money(subtotal))}
-            {itemDiscounts > 0 && totalRow('Item Discounts', `-${money(itemDiscounts)}`)}
-            {invoice.discount_amount > 0 && totalRow('Discount', `-${money(invoice.discount_amount)}`)}
-            {invoice.gst_amount > 0 && totalRow(`GST${shop.gst_number ? ` (${shop.gst_number})` : ''}`, money(invoice.gst_amount))}
-            <div style={{ borderTop: '2px solid #000', marginTop: 4 }}>{totalRow('Total', money(invoice.total_amount), true)}</div>
-            {totalRow('Payment Mode', <span style={{ textTransform: 'capitalize' }}>{invoice.payment_mode}</span>)}
-            {invoice.payment_mode === 'credit' && (
-              <>
-                {totalRow('Paid', money(amountPaid))}
-                {totalRow('Balance Due', money(balance), true)}
-              </>
+        <div style={{ display: 'flex', justifyContent: 'space-between', gap: 24, marginTop: 16, pageBreakInside: 'avoid' }}>
+          <div style={{ flex: 1, fontSize: 11, lineHeight: 1.5 }}>
+            {(shop.payment_terms || shop.return_policy) && (
+              <div style={{ marginBottom: 12 }}>
+                <div style={{ fontWeight: 'bold', fontSize: 12 }}>TERMS AND CONDITIONS</div>
+                {shop.payment_terms && <div style={{ whiteSpace: 'pre-line' }}>{shop.payment_terms}</div>}
+                {shop.return_policy && <div style={{ whiteSpace: 'pre-line' }}>{shop.return_policy}</div>}
+              </div>
             )}
+            {hasBank && (
+              <div>
+                <div style={{ fontWeight: 'bold', fontSize: 12 }}>BANK DETAILS</div>
+                {shop.bank_account_name && <div>Name: {shop.bank_account_name}</div>}
+                {shop.bank_ifsc && <div>IFSC Code: {shop.bank_ifsc}</div>}
+                {shop.bank_account_no && <div>Account No: {shop.bank_account_no}</div>}
+                {shop.bank_name && <div>Bank: {shop.bank_name}</div>}
+              </div>
+            )}
+          </div>
+          <div style={{ width: 290 }}>
+            {tax.invoiceDiscount > 0 && row('Subtotal', `₹${money(tax.amountsTotal)}`)}
+            {tax.invoiceDiscount > 0 && row('Discount', `-₹${money(tax.invoiceDiscount)}`)}
+            {tax.gst > 0 && row('Taxable Amount', `₹${money(tax.taxable)}`)}
+            {tax.gst > 0 && row(`CGST @${tax.rate / 2}%`, `₹${money(tax.cgst)}`)}
+            {tax.gst > 0 && row(`SGST @${tax.rate / 2}%`, `₹${money(tax.sgst)}`)}
+            <div style={{ borderTop: '2px solid #000', margin: '4px 0' }}>{row('Total Amount', `₹${money(invoice.total_amount)}`, true)}</div>
+            {row('Received Amount', `₹${money(amountPaid)}`)}
+            {balance > 0.004 && row('Balance Due', `₹${money(balance)}`, true)}
+            <div style={{ marginTop: 10, fontSize: 11 }}>
+              <div style={{ color: '#444' }}>Total Amount (in words)</div>
+              <div style={{ fontWeight: 'bold' }}>{amountInWords(invoice.total_amount)}</div>
+            </div>
           </div>
         </div>
 
-        <div style={{ marginTop: 12, fontWeight: 'bold', pageBreakInside: 'avoid' }}>{amountInWords(invoice.total_amount)}</div>
-
-        {(shop.payment_terms || shop.return_policy) && (
-          <div style={{ marginTop: 20, fontSize: 11, color: '#333', pageBreakInside: 'avoid' }}>
-            {shop.payment_terms && <div>{shop.payment_terms}</div>}
-            {shop.return_policy && <div style={{ marginTop: 4 }}>{shop.return_policy}</div>}
+        <div style={{ marginTop: 40, display: 'flex', justifyContent: 'flex-end', pageBreakInside: 'avoid' }}>
+          <div style={{ textAlign: 'right', fontSize: 11 }}>
+            <div style={{ height: 50 }} />
+            <div>Authorised Signatory for</div>
+            <div style={{ fontWeight: 'bold', textTransform: 'uppercase' }}>{shop.shop_name || 'Modern Fashion Bazaar'}</div>
           </div>
-        )}
-
-        <div style={{ textAlign: 'center', marginTop: 24, fontSize: 12 }}>Thank you for shopping with us!</div>
+        </div>
+        <div style={{ textAlign: 'center', marginTop: 16, fontSize: 11, color: '#555' }}>Thank you for shopping with us!</div>
       </div>
     )
   }
@@ -301,7 +349,7 @@ export default function InvoicePrint({ invoiceId }) {
       )}
       {invoice.gst_amount > 0 && (
         <div style={{ display: 'flex', justifyContent: 'space-between' }}>
-          <span>GST{shop.gst_number ? ` (${shop.gst_number})` : ''}</span>
+          <span>GST{invoice.gst_inclusive ? ' (incl.)' : ''}{shop.gst_number ? ` (${shop.gst_number})` : ''}</span>
           <span>₹{invoice.gst_amount.toFixed(2)}</span>
         </div>
       )}

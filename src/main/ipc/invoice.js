@@ -47,10 +47,17 @@ module.exports = (ipcMain, db) => {
 
         totalAmount -= discount;
 
-        const shopSettings = db.prepare('SELECT gst_rate FROM shop_settings WHERE id = 1').get();
+        // GST either sits inside the prices (tax is carved out of the total) or is added on top
+        const shopSettings = db.prepare('SELECT gst_rate, prices_include_gst FROM shop_settings WHERE id = 1').get();
         const gstRate = shopSettings?.gst_rate || 0;
-        const gstAmount = Math.round(totalAmount * (gstRate / 100) * 100) / 100;
-        totalAmount += gstAmount;
+        const gstInclusive = !!shopSettings?.prices_include_gst;
+        let gstAmount;
+        if (gstInclusive) {
+          gstAmount = Math.round((totalAmount - totalAmount / (1 + gstRate / 100)) * 100) / 100;
+        } else {
+          gstAmount = Math.round(totalAmount * (gstRate / 100) * 100) / 100;
+          totalAmount += gstAmount;
+        }
 
         if (paymentMode === 'credit' && customerId) {
           db.prepare('UPDATE customers SET credit_balance = credit_balance + ? WHERE id = ?')
@@ -60,9 +67,9 @@ module.exports = (ipcMain, db) => {
         const amountPaid = paymentMode === 'credit' ? 0 : totalAmount;
 
         const invoice = db.prepare(`
-          INSERT INTO invoices (bill_number, customer_id, total_amount, discount_amount, gst_amount, amount_paid, payment_mode, created_by)
-          VALUES (?, ?, ?, ?, ?, ?, ?, ?)
-        `).run(billNumber, customerId || null, totalAmount, discount, gstAmount, amountPaid, paymentMode, userId);
+          INSERT INTO invoices (bill_number, customer_id, total_amount, discount_amount, gst_amount, gst_rate, gst_inclusive, amount_paid, payment_mode, created_by)
+          VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        `).run(billNumber, customerId || null, totalAmount, discount, gstAmount, gstRate, gstInclusive ? 1 : 0, amountPaid, paymentMode, userId);
 
         const itemInsert = db.prepare(`
           INSERT INTO invoice_items (invoice_id, product_id, quantity, unit_price, discount, subtotal)
@@ -91,14 +98,15 @@ module.exports = (ipcMain, db) => {
     if (denied) return denied;
     try {
       const invoice = db.prepare(`
-        SELECT i.*, c.name as customer_name, c.phone as customer_phone, u.username as created_by_username
+        SELECT i.*, c.name as customer_name, c.phone as customer_phone, c.address as customer_address, c.gstin as customer_gstin,
+          u.username as created_by_username
         FROM invoices i
         LEFT JOIN customers c ON i.customer_id = c.id
         LEFT JOIN users u ON i.created_by = u.id
         WHERE i.id = ?
       `).get(invoiceId);
       const items = db.prepare(`
-        SELECT ii.*, p.name as product_name, p.barcode
+        SELECT ii.*, p.name as product_name, p.barcode, p.hsn_code
         FROM invoice_items ii
         JOIN products p ON ii.product_id = p.id
         WHERE ii.invoice_id = ?

@@ -19,6 +19,7 @@ function buildInventoryHtml({ shopName, filterLabel, products }) {
       <td>${escapeHtml(p.category_name || '-')}</td>
       <td class="r">${p.current_stock}</td>
       <td class="r">${money(p.cost_price)}</td>
+      <td class="r">${p.landed_cost != null ? money(p.landed_cost) : '-'}</td>
       <td class="r">${money(p.selling_price)}</td>
     </tr>`).join('');
 
@@ -40,7 +41,7 @@ function buildInventoryHtml({ shopName, filterLabel, products }) {
     <table>
       <thead><tr>
         <th>#</th><th>Product</th><th>SKU</th><th>Category</th>
-        <th class="r">Stock</th><th class="r">Cost</th><th class="r">Price</th>
+        <th class="r">Stock</th><th class="r">Cost</th><th class="r">Landed</th><th class="r">Price</th>
       </tr></thead>
       <tbody>${rows}</tbody>
     </table>

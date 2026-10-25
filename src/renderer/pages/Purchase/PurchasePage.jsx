@@ -37,7 +37,7 @@ export default function PurchasePage() {
   const [items, setItems] = useState([])
   const [discount, setDiscount] = useState('')
   const [gstRate, setGstRate] = useState('')
-  const [gstInCost, setGstInCost] = useState(false)
+  const [gstInCost, setGstInCost] = useState(true)
   const [transportCost, setTransportCost] = useState('')
   const [editingId, setEditingId] = useState(null)
   const [searchTerm, setSearchTerm] = useState('')
@@ -321,7 +321,7 @@ export default function PurchasePage() {
     setBillDate(todayStr())
     setDiscount('')
     setGstRate('')
-    setGstInCost(false)
+    setGstInCost(true)
     setTransportCost('')
     setEditingId(null)
     setImportIssues([])
@@ -730,62 +730,64 @@ export default function PurchasePage() {
                 <table className="w-full text-sm">
                   <thead>
                     <tr className="border-b text-left">
-                      <th className="py-2 px-1">Product</th>
+                      <th className="py-2 px-1 text-left">Product</th>
                       <th className="py-2 px-1 text-center">Qty</th>
-                      <th className="py-2 px-1 text-right">Unit Cost</th>
-                      <th className="py-2 px-1 text-right">Subtotal</th>
-                      <th className="py-2 px-1 text-right" title="Cost per unit after discount, transport and GST-in-cost are shared across the items">Landed Cost</th>
-                      <th className="py-2 px-1 text-right">MRP</th>
-                      <th className="py-2 px-1 text-right" title="Markup on the landed cost; fills in the selling price">Markup %</th>
-                      <th className="py-2 px-1 text-right">Selling</th>
-                      <th className="py-2 px-1"></th>
+                      <th className="py-2 px-1 text-center">Unit Cost</th>
+                      <th className="py-2 px-1 text-center" title="GST on this item, per unit (from the GST % in the summary)">GST</th>
+                      <th className="py-2 px-1 text-center" title="Transport cost shared by value, per unit">Transport</th>
+                      <th className="py-2 px-1 text-center" title="Unit cost + GST + transport (less this item's share of any discount)">Landed Cost</th>
+                      <th className="py-2 px-1 text-center">MRP</th>
+                      <th className="py-2 px-1 text-center" title="Markup on the landed cost; fills in the selling price">Markup %</th>
+                      <th className="py-2 px-1 text-center">Selling</th>
+                      <th className="py-2 px-1 text-center"></th>
                     </tr>
                   </thead>
                   <tbody>
                     {items.map((item, idx) => (
                       <tr key={item.product_id} className="border-b">
-                        <td className="py-2 pr-2">{item.name}</td>
+                        <td className="py-2 pr-2 text-left">{item.name}</td>
                         <td className="py-2 text-center">
                           <input type="number" min="1" value={item.quantity}
                             onChange={(e) => updateItem(item.product_id, { quantity: parseInt(e.target.value) || 1 })}
                             className="w-16 text-center border rounded" />
                         </td>
-                        <td className="py-2 text-right">
+                        <td className="py-2 text-center">
                           <input type="number" min="0" step="0.01" value={item.unit_cost}
                             onChange={(e) => updateItem(item.product_id, { unit_cost: parseFloat(e.target.value) || 0 })}
-                            className="w-24 text-right border rounded" />
+                            className="w-24 text-center border rounded" />
                         </td>
-                        <td className="py-2 text-right">{money(item.subtotal)}</td>
-                        <td className="py-2 text-right text-blue-700 font-medium">{money(landedFor(idx))}</td>
-                        <td className="py-2 text-right">
+                        <td className="py-2 text-center text-gray-600">{money(totals.gstPerUnit[idx])}</td>
+                        <td className="py-2 text-center text-gray-600">{money(totals.transportPerUnit[idx])}</td>
+                        <td className="py-2 text-center text-blue-700 font-medium">{money(landedFor(idx))}</td>
+                        <td className="py-2 text-center">
                           <input type="number" min="0" step="0.01" value={item.mrp}
                             onChange={(e) => updateItem(item.product_id, { mrp: e.target.value })}
-                            className="w-20 text-right border rounded" />
+                            className="w-20 text-center border rounded" />
                         </td>
-                        <td className="py-2 text-right">
+                        <td className="py-2 text-center">
                           <input type="number" min="0" step="0.1" value={item.markup} placeholder="%"
                             onChange={(e) => updateItem(item.product_id, { markup: e.target.value })}
-                            className="w-16 text-right border rounded" />
+                            className="w-16 text-center border rounded" />
                         </td>
-                        <td className="py-2 text-right">
+                        <td className="py-2 text-center">
                           <input type="number" min="0" step="0.01" value={sellingFor(item, idx)}
                             onChange={(e) => updateItem(item.product_id, { selling_price: e.target.value, markup: '' })}
-                            className="w-24 text-right border rounded" />
+                            className="w-24 text-center border rounded" />
                         </td>
-                        <td className="py-2 text-right">
+                        <td className="py-2 text-center">
                           <button onClick={() => removeItem(item.product_id)} className="text-red-600 hover:underline">Remove</button>
                         </td>
                       </tr>
                     ))}
                     {items.length === 0 && (
-                      <tr><td colSpan="9" className="py-6 text-center text-gray-400">No items added</td></tr>
+                      <tr><td colSpan="10" className="py-6 text-center text-gray-400">No items added</td></tr>
                     )}
                   </tbody>
                 </table>
               </div>
               {items.length > 0 && (
                 <p className="text-xs text-gray-400 mt-2">
-                  Landed cost = unit cost after sharing the discount and transport (and GST, if added to cost) across the items by value. A markup % sets the selling price from it. MRP and selling price update the product when the purchase is received.
+                  Landed cost = unit cost + GST + transport per unit (less the item's share of any discount). GST is only counted while "add it to the item cost" is ticked below the GST %. A markup % sets the selling price from it. MRP and selling price update the product when the purchase is received.
                 </p>
               )}
             </div>

@@ -20,13 +20,14 @@ module.exports = (ipcMain, db) => {
     if (denied) return denied;
     try {
       const result = db.prepare(`
-        INSERT INTO customers (name, phone, email, address, is_recurring)
-        VALUES (?, ?, ?, ?, ?)
+        INSERT INTO customers (name, phone, email, address, gstin, is_recurring)
+        VALUES (?, ?, ?, ?, ?, ?)
       `).run(
         customer.name,
         customer.phone,
         customer.email,
         customer.address,
+        customer.gstin ? String(customer.gstin).trim().toUpperCase() : null,
         customer.is_recurring ? 1 : 0
       );
 
@@ -63,13 +64,14 @@ module.exports = (ipcMain, db) => {
     try {
       db.prepare(`
         UPDATE customers SET
-        name = ?, phone = ?, email = ?, address = ?, is_recurring = ?
+        name = ?, phone = ?, email = ?, address = ?, gstin = ?, is_recurring = ?
         WHERE id = ?
       `).run(
         customer.name,
         customer.phone,
         customer.email,
         customer.address,
+        customer.gstin ? String(customer.gstin).trim().toUpperCase() : null,
         customer.is_recurring ? 1 : 0,
         id
       );

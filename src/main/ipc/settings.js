@@ -88,52 +88,33 @@ module.exports = (ipcMain, db) => {
     }
   });
 
-  // Update shop settings
+  // Update shop settings. One column list drives both the first-time insert and later updates,
+  // so a setting is added in exactly one place.
+  const SETTING_TEXT_COLUMNS = [
+    'shop_name', 'shop_address', 'shop_phone', 'shop_email', 'gst_number', 'payment_terms', 'return_policy',
+    'pan_number', 'place_of_supply', 'bank_account_name', 'bank_name', 'bank_account_no', 'bank_ifsc'
+  ];
   ipcMain.handle('update-shop-settings', (event, settings) => {
     const denied = checkPermission(event, 'settings');
     if (denied) return denied;
     try {
-      const existing = db.prepare('SELECT COUNT(*) as count FROM shop_settings').get();
+      const values = {
+        ...Object.fromEntries(SETTING_TEXT_COLUMNS.map(c => [c, settings[c] ?? null])),
+        gst_rate: Number(settings.gst_rate) || 0,
+        prices_include_gst: settings.prices_include_gst ? 1 : 0,
+        thermal_printing_enabled: settings.thermal_printing_enabled ? 1 : 0,
+        thermal_printer_name: settings.thermal_printer_name || null,
+        thermal_paper_width: settings.thermal_paper_width || 80
+      };
+      const columns = Object.keys(values);
 
+      const existing = db.prepare('SELECT COUNT(*) as count FROM shop_settings').get();
       if (existing.count === 0) {
-        db.prepare(`
-          INSERT INTO shop_settings
-          (shop_name, shop_address, shop_phone, shop_email, gst_number, gst_rate, payment_terms, return_policy,
-           thermal_printing_enabled, thermal_printer_name, thermal_paper_width)
-          VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-        `).run(
-          settings.shop_name,
-          settings.shop_address,
-          settings.shop_phone,
-          settings.shop_email,
-          settings.gst_number,
-          settings.gst_rate || 0,
-          settings.payment_terms,
-          settings.return_policy,
-          settings.thermal_printing_enabled ? 1 : 0,
-          settings.thermal_printer_name || null,
-          settings.thermal_paper_width || 80
-        );
+        db.prepare(`INSERT INTO shop_settings (${columns.join(', ')}) VALUES (${columns.map(() => '?').join(', ')})`)
+          .run(...columns.map(c => values[c]));
       } else {
-        db.prepare(`
-          UPDATE shop_settings SET
-          shop_name = ?, shop_address = ?, shop_phone = ?, shop_email = ?,
-          gst_number = ?, gst_rate = ?, payment_terms = ?, return_policy = ?,
-          thermal_printing_enabled = ?, thermal_printer_name = ?, thermal_paper_width = ?
-          WHERE id = 1
-        `).run(
-          settings.shop_name,
-          settings.shop_address,
-          settings.shop_phone,
-          settings.shop_email,
-          settings.gst_number,
-          settings.gst_rate || 0,
-          settings.payment_terms,
-          settings.return_policy,
-          settings.thermal_printing_enabled ? 1 : 0,
-          settings.thermal_printer_name || null,
-          settings.thermal_paper_width || 80
-        );
+        db.prepare(`UPDATE shop_settings SET ${columns.map(c => `${c} = ?`).join(', ')} WHERE id = 1`)
+          .run(...columns.map(c => values[c]));
       }
 
       return { success: true };

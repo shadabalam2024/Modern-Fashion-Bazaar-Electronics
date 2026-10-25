@@ -312,6 +312,7 @@ export default function InventoryPage() {
                   <th className="px-6 py-3 text-left">Category</th>
                   <th className="px-6 py-3 text-right">Stock</th>
                   <th className="px-6 py-3 text-right">Cost</th>
+                  <th className="px-6 py-3 text-right" title="Landed cost (cost + GST + transport, less discount) of the latest received purchase">Landed</th>
                   <th className="px-6 py-3 text-right">Price</th>
                   <th className="px-6 py-3 text-right">Actions</th>
                 </tr>
@@ -330,6 +331,9 @@ export default function InventoryPage() {
                         ₹{p.cost_price}
                       </button>
                     </td>
+                    <td className="px-6 py-4 text-right text-gray-600">
+                      {p.landed_cost != null ? `₹${Number(p.landed_cost).toFixed(2)}` : '—'}
+                    </td>
                     <td className="px-6 py-4 text-right">₹{p.selling_price}</td>
                     <td className="px-6 py-4 text-right space-x-3 whitespace-nowrap">
                       <button onClick={() => openLabels(p.name, [p])} className="text-blue-600 hover:underline">Labels</button>
@@ -340,7 +344,7 @@ export default function InventoryPage() {
                   </tr>
                 ))}
                 {filteredProducts.length === 0 && (
-                  <tr><td colSpan="7" className="py-8 text-center text-gray-400">
+                  <tr><td colSpan="8"className="py-8 text-center text-gray-400">
                     {search.trim() ? 'No products match your search' : 'No products yet'}
                   </td></tr>
                 )}

@@ -17,10 +17,12 @@ export function computePurchaseTotals({ items, discount = 0, gstRate = 0, transp
   const roundOff = round2(grandTotal - beforeRounding)
 
   const adjustment = -disc + trans + (gstInCost ? gstAmount : 0)
-  const landed = lines.map(l => {
-    const share = itemsTotal > 0 ? l.value / itemsTotal : Number(l.quantity) / (totalQty || 1)
-    return Number(l.unit_cost) + (adjustment * share) / (Number(l.quantity) || 1)
-  })
+  const shares = lines.map(l => itemsTotal > 0 ? l.value / itemsTotal : Number(l.quantity) / (totalQty || 1))
+  const perUnit = (amount, idx) => (amount * shares[idx]) / (Number(lines[idx].quantity) || 1)
+  const landed = lines.map((l, idx) => Number(l.unit_cost) + perUnit(adjustment, idx))
+  // the same shares, split out per unit so the table can show where the landed cost comes from
+  const gstPerUnit = lines.map((l, idx) => perUnit(gstAmount, idx))
+  const transportPerUnit = lines.map((l, idx) => perUnit(trans, idx))
 
-  return { itemsTotal, discount: disc, net, gstAmount, transport: trans, roundOff, grandTotal, landed }
+  return { itemsTotal, discount: disc, net, gstAmount, transport: trans, roundOff, grandTotal, landed, gstPerUnit, transportPerUnit }
 }

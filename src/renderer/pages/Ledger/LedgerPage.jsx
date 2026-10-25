@@ -65,6 +65,7 @@ export default function LedgerPage() {
   const [ledger, setLedger] = useState(null)
   const [error, setError] = useState('')
   const [filter, setFilter] = useState('all')
+  const [search, setSearch] = useState('')
   const [outputMessage, setOutputMessage] = useState('')
   const [outputError, setOutputError] = useState(false)
 
@@ -86,7 +87,7 @@ export default function LedgerPage() {
 
   const handlePrint = async () => {
     setOutputMessage('')
-    const result = await window.ipcRenderer.invoke('print-ledger', { from, to, filter })
+    const result = await window.ipcRenderer.invoke('print-ledger', { from, to, filter, search })
     if (!result.success) {
       setOutputError(true)
       setOutputMessage(result.message || 'Could not open the print preview')
@@ -95,7 +96,7 @@ export default function LedgerPage() {
 
   const handleExport = async () => {
     setOutputMessage('')
-    const result = await window.ipcRenderer.invoke('export-ledger-excel', { from, to, filter })
+    const result = await window.ipcRenderer.invoke('export-ledger-excel', { from, to, filter, search })
     if (result.success) {
       setOutputError(false)
       setOutputMessage(`Exported to ${result.filePath}`)
@@ -142,8 +143,16 @@ export default function LedgerPage() {
 
   const s = ledger?.summary
 
+  // Every typed word must appear somewhere in the row's type, details, mode, date or amounts
+  const rowMatches = (r) => {
+    const q = search.trim().toLowerCase()
+    if (!q) return true
+    const hay = [SOURCE_LABELS[r.source], r.description, r.mode, r.d, new Date(r.d + 'T00:00:00').toLocaleDateString(), r.amt_in || '', r.amt_out || ''].join(' ').toLowerCase()
+    return q.split(/\s+/).every(word => hay.includes(word))
+  }
+  const searching = search.trim() !== ''
   const visibleRows = ledger
-    ? ledger.rows.filter(r => !FILTERS[filter].sources || FILTERS[filter].sources.includes(r.source))
+    ? ledger.rows.filter(r => (!FILTERS[filter].sources || FILTERS[filter].sources.includes(r.source)) && rowMatches(r))
     : []
   const visibleIn = visibleRows.reduce((t, r) => t + r.amt_in, 0)
   const visibleOut = visibleRows.reduce((t, r) => t + r.amt_out, 0)
@@ -271,6 +280,15 @@ export default function LedgerPage() {
             </form>
           </div>
 
+          <div className="mb-3 max-w-md">
+            <input
+              type="text"
+              placeholder="Search by name, bill no, expense, amount, date..."
+              value={search}
+              onChange={(e) => setSearch(e.target.value)}
+              className="w-full px-4 py-2 border rounded"
+            />
+          </div>
           <div className="flex flex-wrap items-center gap-2 mb-3">
             <span className="text-sm text-gray-500 mr-1">Show:</span>
             {Object.entries(FILTERS).map(([key, { label }]) => (
@@ -316,12 +334,12 @@ export default function LedgerPage() {
                 ))}
                 {ledger && visibleRows.length === 0 && (
                   <tr><td colSpan="8" className="py-8 text-center text-gray-400">
-                    {filter === 'all' ? 'No money movements in this period' : `No ${FILTERS[filter].label.toLowerCase()} in this period`}
+                    {searching ? 'No entries match your search' : filter === 'all' ? 'No money movements in this period' : `No ${FILTERS[filter].label.toLowerCase()} in this period`}
                   </td></tr>
                 )}
-                {ledger && filter !== 'all' && visibleRows.length > 0 && (
+                {ledger && (filter !== 'all' || searching) && visibleRows.length > 0 && (
                   <tr className="bg-gray-50 font-bold">
-                    <td className="px-4 py-2" colSpan="4">Total {FILTERS[filter].label.toLowerCase()} ({visibleRows.length})</td>
+                    <td className="px-4 py-2" colSpan="4">Total {searching ? 'matching' : FILTERS[filter].label.toLowerCase()} ({visibleRows.length})</td>
                     <td className="px-4 py-2 text-right text-green-600">{visibleIn > 0 ? money(visibleIn) : ''}</td>
                     <td className="px-4 py-2 text-right text-red-600">{visibleOut > 0 ? money(visibleOut) : ''}</td>
                     <td colSpan="2"></td>
@@ -338,7 +356,7 @@ export default function LedgerPage() {
             </table>
           </div>
           <p className="text-xs text-gray-400 mt-3">
-            {filter !== 'all' && 'The balance column is the overall shop balance, not just this filter. '}Credit sales only count as money in once the customer pays. Purchases (including transport) count as money out on the day they are created.
+            {(filter !== 'all' || searching) && 'The balance column is the overall shop balance, not just the entries shown. '}Credit sales only count as money in once the customer pays. Purchases (including transport) count as money out on the day they are created.
           </p>
         </div>
       </div>

@@ -54,6 +54,19 @@ const FILTERS = {
   owner: { label: 'Owner money', sources: ['owner_in', 'owner_out'] }
 };
 
+const SOURCE_LABELS = {
+  sale: 'Sale', customer_payment: 'Customer payment', purchase: 'Purchase', purchase_return: 'Supplier refund',
+  refund: 'Refund', owner_in: 'Owner money in', owner_out: 'Owner withdrawal', expense: 'Expense'
+};
+
+// Text search over a row's type, details, mode, date and amounts (same idea as the screen's search)
+function rowMatches(row, search) {
+  const q = String(search || '').trim().toLowerCase();
+  if (!q) return true;
+  const hay = [SOURCE_LABELS[row.source], row.description, row.mode, row.d, row.amt_in || '', row.amt_out || ''].join(' ').toLowerCase();
+  return q.split(/\s+/).every(word => hay.includes(word));
+}
+
 const MANUAL_TYPES = ['owner_in', 'owner_out', 'expense'];
 const isDate = (v) => /^\d{4}-\d{2}-\d{2}$/.test(String(v || ''));
 
@@ -175,19 +188,23 @@ module.exports = (ipcMain, db) => {
   });
 
   // Same data as the screen (re-read from the DB, with the same filter applied) for print/export
-  function ledgerForOutput(from, to, filterKey) {
+  function ledgerForOutput(from, to, filterKey, search) {
     const ledger = computeLedger(db, from, to);
     if (!ledger.success) return ledger;
     const filter = FILTERS[filterKey] || FILTERS.all;
-    const rows = filter.sources ? ledger.rows.filter(r => filter.sources.includes(r.source)) : ledger.rows;
-    return { ...ledger, rows, filterLabel: filter.label, filtered: !!filter.sources };
+    const q = String(search || '').trim();
+    const rows = ledger.rows
+      .filter(r => !filter.sources || filter.sources.includes(r.source))
+      .filter(r => rowMatches(r, q));
+    const label = [filter.sources ? filter.label : '', q ? `"${q}"` : ''].filter(Boolean).join(' + ');
+    return { ...ledger, rows, filterLabel: label, filtered: !!filter.sources || !!q };
   }
 
-  ipcMain.handle('print-ledger', async (event, { from, to, filter }) => {
+  ipcMain.handle('print-ledger', async (event, { from, to, filter, search }) => {
     const denied = checkPermission(event, 'admin');
     if (denied) return denied;
     try {
-      const ledger = ledgerForOutput(from, to, filter);
+      const ledger = ledgerForOutput(from, to, filter, search);
       if (!ledger.success) return ledger;
       const shop = db.prepare('SELECT shop_name FROM shop_settings WHERE id = 1').get();
       return await openPdfPreview(buildLedgerHtml({ shopName: shop?.shop_name, from, to, ledger }), 'Ledger - Print Preview');
@@ -196,11 +213,11 @@ module.exports = (ipcMain, db) => {
     }
   });
 
-  ipcMain.handle('export-ledger-excel', async (event, { from, to, filter }) => {
+  ipcMain.handle('export-ledger-excel', async (event, { from, to, filter, search }) => {
     const denied = checkPermission(event, 'admin');
     if (denied) return denied;
     try {
-      const ledger = ledgerForOutput(from, to, filter);
+      const ledger = ledgerForOutput(from, to, filter, search);
       if (!ledger.success) return ledger;
       const workbook = buildLedgerWorkbook({ from, to, ledger });
 

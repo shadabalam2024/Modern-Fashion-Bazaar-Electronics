@@ -16,6 +16,7 @@ export default function BillingPage() {
   const [customers, setCustomers] = useState([])
   const [customerName, setCustomerName] = useState('')
   const [customerPhone, setCustomerPhone] = useState('')
+  const [customerAddress, setCustomerAddress] = useState('')
   const [selectedCustomer, setSelectedCustomer] = useState(null)
   const [discountType, setDiscountType] = useState('flat')
   const [discount, setDiscount] = useState(0)
@@ -31,6 +32,7 @@ export default function BillingPage() {
   const [viewingInvoice, setViewingInvoice] = useState(null)
   const [lastInvoiceId, setLastInvoiceId] = useState(null)
   const [gstRate, setGstRate] = useState(0)
+  const [pricesIncludeGst, setPricesIncludeGst] = useState(false)
   const [showCustomItemForm, setShowCustomItemForm] = useState(false)
   const [customItemName, setCustomItemName] = useState('')
   const [customItemPrice, setCustomItemPrice] = useState('')
@@ -50,6 +52,7 @@ export default function BillingPage() {
   const loadShopSettings = async () => {
     const settings = await window.ipcRenderer.invoke('get-shop-settings')
     setGstRate(Number(settings?.gst_rate) || 0)
+    setPricesIncludeGst(!!settings?.prices_include_gst)
   }
 
   const loadInvoiceHistory = async () => {
@@ -244,12 +247,14 @@ export default function BillingPage() {
     setSelectedCustomer(c)
     setCustomerName(c.name || '')
     setCustomerPhone(c.phone || '')
+    setCustomerAddress(c.address || '')
   }
 
   const clearCustomer = () => {
     setSelectedCustomer(null)
     setCustomerName('')
     setCustomerPhone('')
+    setCustomerAddress('')
   }
 
   const handleQuickAddCustomer = async () => {
@@ -261,11 +266,11 @@ export default function BillingPage() {
       name: customerName.trim(),
       phone: customerPhone.trim(),
       email: '',
-      address: '',
+      address: customerAddress.trim(),
       is_recurring: false
     })
     if (result.success) {
-      const newCustomer = { id: result.customerId, name: customerName.trim(), phone: customerPhone.trim(), credit_balance: 0 }
+      const newCustomer = { id: result.customerId, name: customerName.trim(), phone: customerPhone.trim(), address: customerAddress.trim(), credit_balance: 0 }
       setCustomers(prev => [...prev, newCustomer])
       selectCustomer(newCustomer)
     } else {
@@ -284,8 +289,11 @@ export default function BillingPage() {
     ? cartTotal * (Number(discount || 0) / 100)
     : Number(discount || 0)
   const taxableAmount = Math.max(0, cartTotal - discountAmount)
-  const gstAmount = taxableAmount * (gstRate / 100)
-  const grandTotal = taxableAmount + gstAmount
+  // Prices either already include GST (tax is carved out of the total) or GST is added on top
+  const gstAmount = pricesIncludeGst
+    ? taxableAmount - taxableAmount / (1 + gstRate / 100)
+    : taxableAmount * (gstRate / 100)
+  const grandTotal = pricesIncludeGst ? taxableAmount : taxableAmount + gstAmount
 
   const handleCompleteSale = async () => {
     setError('')
@@ -479,6 +487,7 @@ export default function BillingPage() {
                   <div>
                     <p className="font-medium">{selectedCustomer.name}</p>
                     <p className="text-xs text-gray-500">{selectedCustomer.phone}</p>
+                    {selectedCustomer.address && <p className="text-xs text-gray-500">{selectedCustomer.address}</p>}
                   </div>
                   <button onClick={clearCustomer} className="text-gray-400 hover:text-gray-700 text-sm">Change</button>
                 </div>
@@ -505,6 +514,16 @@ export default function BillingPage() {
                         className="w-full px-4 py-2 border rounded"
                       />
                     </div>
+                    <div className="col-span-2">
+                      <label className="block text-xs text-gray-500 mb-1">Address</label>
+                      <textarea
+                        rows="2"
+                        placeholder="Address (shown on the bill)"
+                        value={customerAddress}
+                        onChange={(e) => setCustomerAddress(e.target.value)}
+                        className="w-full px-4 py-2 border rounded"
+                      />
+                    </div>
                   </div>
                   {customerMatches.length > 0 && (
                     <div className="absolute z-10 w-full bg-white border rounded mt-1 shadow-lg max-h-48 overflow-y-auto">
@@ -523,7 +542,7 @@ export default function BillingPage() {
                   {(nameQuery || phoneQuery) && customerMatches.length === 0 && (
                     <div className="border rounded p-3 mt-1 bg-gray-50">
                       <p className="text-xs text-gray-500 mb-2">
-                        No customer found{phoneQuery ? ` for "${customerPhone}"` : ''} - fill in name &amp; phone to register
+                        No customer found{phoneQuery ? ` for "${customerPhone}"` : ''} - fill in name, phone &amp; address to register
                       </p>
                       <button
                         type="button"
@@ -592,7 +611,7 @@ export default function BillingPage() {
                 )}
                 {gstRate > 0 && (
                   <div className="flex justify-between text-gray-600">
-                    <span>GST ({gstRate}%)</span>
+                    <span>GST ({gstRate}%){pricesIncludeGst ? ' included' : ''}</span>
                     <span>₹{gstAmount.toFixed(2)}</span>
                   </div>
                 )}
@@ -713,7 +732,7 @@ export default function BillingPage() {
               </div>
               {viewingInvoice.gst_amount > 0 && (
                 <div className="flex justify-between text-sm text-gray-600">
-                  <span>GST</span>
+                  <span>GST{viewingInvoice.gst_inclusive ? ' (included)' : ''}</span>
                   <span>₹{viewingInvoice.gst_amount.toFixed(2)}</span>
                 </div>
               )}

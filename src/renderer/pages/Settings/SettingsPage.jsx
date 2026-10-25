@@ -17,7 +17,8 @@ function Field({ label, className = '', children }) {
 function ShopInfoTab() {
   const [form, setForm] = useState({
     shop_name: '', shop_address: '', shop_phone: '', shop_email: '',
-    gst_number: '', gst_rate: '', payment_terms: '', return_policy: ''
+    gst_number: '', gst_rate: '', payment_terms: '', return_policy: '',
+    pan_number: '', place_of_supply: '', bank_account_name: '', bank_name: '', bank_account_no: '', bank_ifsc: '', prices_include_gst: false
   })
   const [logoUrl, setLogoUrl] = useState(null)
   const [message, setMessage] = useState('')
@@ -105,9 +106,50 @@ function ShopInfoTab() {
             onChange={(e) => setForm({ ...form, gst_rate: e.target.value })}
             className="w-full px-4 py-2 border rounded" />
         </Field>
+        <Field label="PAN Number">
+          <input placeholder="PAN Number" value={form.pan_number || ''}
+            onChange={(e) => setForm({ ...form, pan_number: e.target.value.toUpperCase() })}
+            className="w-full px-4 py-2 border rounded" />
+        </Field>
+        <Field label="Place of Supply (state)">
+          <input placeholder="e.g. Bihar" value={form.place_of_supply || ''}
+            onChange={(e) => setForm({ ...form, place_of_supply: e.target.value })}
+            className="w-full px-4 py-2 border rounded" />
+        </Field>
+        <label className="col-span-2 flex items-start gap-2 text-sm text-gray-700">
+          <input type="checkbox" checked={!!form.prices_include_gst}
+            onChange={(e) => setForm({ ...form, prices_include_gst: e.target.checked })} className="mt-1" />
+          <span>
+            Selling prices already include GST
+            <span className="block text-xs text-gray-500">
+              On: the GST is taken out of the price on the bill (rate + tax = amount), and the customer pays the price shown. Off: GST is added on top of the price. Applies to new bills; old bills keep how they were made.
+            </span>
+          </span>
+        </label>
         <Field label="Address" className="col-span-2">
           <textarea placeholder="Address" value={form.shop_address || ''}
             onChange={(e) => setForm({ ...form, shop_address: e.target.value })}
+            className="w-full px-4 py-2 border rounded" />
+        </Field>
+        <p className="col-span-2 text-sm font-medium text-gray-700 mt-2">Bank details (printed on the bill)</p>
+        <Field label="Account Name">
+          <input placeholder="Account Name" value={form.bank_account_name || ''}
+            onChange={(e) => setForm({ ...form, bank_account_name: e.target.value })}
+            className="w-full px-4 py-2 border rounded" />
+        </Field>
+        <Field label="Bank">
+          <input placeholder="Bank name and branch" value={form.bank_name || ''}
+            onChange={(e) => setForm({ ...form, bank_name: e.target.value })}
+            className="w-full px-4 py-2 border rounded" />
+        </Field>
+        <Field label="Account Number">
+          <input placeholder="Account Number" value={form.bank_account_no || ''}
+            onChange={(e) => setForm({ ...form, bank_account_no: e.target.value })}
+            className="w-full px-4 py-2 border rounded" />
+        </Field>
+        <Field label="IFSC Code">
+          <input placeholder="IFSC Code" value={form.bank_ifsc || ''}
+            onChange={(e) => setForm({ ...form, bank_ifsc: e.target.value.toUpperCase() })}
             className="w-full px-4 py-2 border rounded" />
         </Field>
         <Field label="Payment Terms (shown on invoices)" className="col-span-2">
@@ -133,6 +175,7 @@ function PrinterTab() {
   const [form, setForm] = useState({
     shop_name: '', shop_address: '', shop_phone: '', shop_email: '',
     gst_number: '', gst_rate: '', payment_terms: '', return_policy: '',
+    pan_number: '', place_of_supply: '', bank_account_name: '', bank_name: '', bank_account_no: '', bank_ifsc: '', prices_include_gst: false,
     thermal_printing_enabled: false, thermal_printer_name: '', thermal_paper_width: 80
   })
   const [printers, setPrinters] = useState([])

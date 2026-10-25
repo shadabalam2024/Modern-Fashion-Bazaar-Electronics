@@ -285,6 +285,16 @@ class ShopDatabase {
     addColumnIfMissing('shop_settings', 'thermal_printer_name', 'TEXT');
     addColumnIfMissing('shop_settings', 'thermal_paper_width', 'INTEGER DEFAULT 80');
     addColumnIfMissing('purchases', 'transport_cost', 'REAL DEFAULT 0');
+    addColumnIfMissing('shop_settings', 'pan_number', 'TEXT');
+    addColumnIfMissing('shop_settings', 'place_of_supply', 'TEXT');
+    addColumnIfMissing('shop_settings', 'bank_account_name', 'TEXT');
+    addColumnIfMissing('shop_settings', 'bank_name', 'TEXT');
+    addColumnIfMissing('shop_settings', 'bank_account_no', 'TEXT');
+    addColumnIfMissing('shop_settings', 'bank_ifsc', 'TEXT');
+    addColumnIfMissing('shop_settings', 'prices_include_gst', 'INTEGER DEFAULT 0');
+    addColumnIfMissing('customers', 'gstin', 'TEXT');
+    addColumnIfMissing('invoices', 'gst_rate', 'REAL');
+    addColumnIfMissing('invoices', 'gst_inclusive', 'INTEGER DEFAULT 0');
     addColumnIfMissing('purchase_items', 'landed_unit_cost', 'REAL');
     addColumnIfMissing('purchase_items', 'mrp', 'REAL');
     addColumnIfMissing('purchase_items', 'selling_price', 'REAL');
