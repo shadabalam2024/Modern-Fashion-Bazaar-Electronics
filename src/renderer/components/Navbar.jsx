@@ -1,3 +1,4 @@
+import { COMPANY } from '../utils/brand'
 import { useDispatch, useSelector } from 'react-redux'
 import { logout } from '../store/slices/auth'
 import useAppUpdater from '../hooks/useAppUpdater'
@@ -25,7 +26,7 @@ export default function Navbar() {
       {(status === 'available' || status === 'downloading' || status === 'downloaded') && (
         <div className="fixed bottom-4 right-4 z-30 bg-white border shadow-lg rounded-lg p-4 w-80">
           {status === 'available' && (
-            <p className="text-sm">Update {version ? `v${version}` : ''} available - downloading...</p>
+            <p className="text-sm">Update {version ? `v${version}` : ''} from {COMPANY} available - downloading...</p>
           )}
           {status === 'downloading' && (
             <>
@@ -37,7 +38,7 @@ export default function Navbar() {
           )}
           {status === 'downloaded' && (
             <>
-              <p className="text-sm font-medium mb-2">Update ready to install</p>
+              <p className="text-sm font-medium mb-2">Update from {COMPANY} ready to install</p>
               <button onClick={installNow} className="w-full bg-blue-600 text-white py-1.5 rounded hover:bg-blue-700 text-sm">
                 Restart & Install
               </button>

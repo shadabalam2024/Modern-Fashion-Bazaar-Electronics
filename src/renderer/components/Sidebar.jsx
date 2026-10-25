@@ -1,14 +1,17 @@
 import { useState, useEffect } from 'react'
 import { Link } from 'react-router-dom'
 import { useSelector } from 'react-redux'
+import { COMPANY, hasSupportContact, contactSupport } from '../utils/brand'
 
 export default function Sidebar() {
   const permissions = useSelector(state => state.auth.permissions)
   const isAdmin = useSelector(state => state.auth.user?.role) === 'Admin'
   const [logoUrl, setLogoUrl] = useState(null)
+  const [version, setVersion] = useState('')
 
   useEffect(() => {
     window.ipcRenderer.invoke('get-shop-logo').then(setLogoUrl)
+    window.ipcRenderer.invoke('get-app-version').then(setVersion)
   }, [])
 
   return (
@@ -29,6 +32,12 @@ export default function Sidebar() {
         {permissions.analytics && <Link to="/analytics" className="block px-4 py-2 rounded hover:bg-gray-800">📈 Analytics</Link>}
         {permissions.settings && <Link to="/settings" className="block px-4 py-2 rounded hover:bg-gray-800">⚙️ Settings</Link>}
       </nav>
+      <div className="mt-8 pt-4 border-t border-gray-800 text-xs text-gray-500 text-center">
+        <p>{COMPANY}{version ? ` · v${version}` : ''}</p>
+        {hasSupportContact && (
+          <button onClick={contactSupport} className="mt-1 text-gray-400 hover:text-white underline">Get support</button>
+        )}
+      </div>
     </aside>
   )
 }

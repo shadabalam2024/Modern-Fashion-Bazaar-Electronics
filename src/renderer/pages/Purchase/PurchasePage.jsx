@@ -6,12 +6,13 @@ import { createScanTracker } from '../../utils/scanTracker'
 import useGlobalScanRedirect from '../../hooks/useGlobalScanRedirect'
 import { computePurchaseTotals, round2 } from '../../utils/purchaseMath'
 import { amountInWords } from '../../utils/amountInWords'
+import { inr } from '../../utils/money'
 
 const todayStr = () => {
   const d = new Date()
   return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`
 }
-const money = (n) => `₹${Number(n || 0).toFixed(2)}`
+const money = (n) => `₹${inr(Number(n || 0), 2)}`
 const emptyNewProduct = {
   name: '', sku: '', barcode: '', category_id: '', cost_price: '', selling_price: '',
   mrp: '', brand: '', hsn_code: '', color: '', sizes: ''
@@ -185,7 +186,8 @@ export default function PurchasePage() {
         quantity: 1,
         subtotal: product.cost_price,
         mrp: product.mrp ?? '',
-        selling_price: product.selling_price ?? '',
+        // left empty until a markup % (or a price) is entered for this purchase
+        selling_price: '',
         markup: ''
       }]
     })
@@ -609,7 +611,7 @@ export default function PurchasePage() {
                           className="w-full text-left px-4 py-2 hover:bg-gray-100 flex justify-between"
                         >
                           <span>{p.name} <span className="text-gray-400 text-sm">({p.barcode || p.sku})</span></span>
-                          <span className="text-gray-600">Cost ₹{p.cost_price}</span>
+                          <span className="text-gray-600">Cost ₹{inr(p.cost_price)}</span>
                         </button>
                       ))}
                     </div>
@@ -770,7 +772,7 @@ export default function PurchasePage() {
                             className="w-16 text-center border rounded" />
                         </td>
                         <td className="py-2 text-center">
-                          <input type="number" min="0" step="0.01" value={sellingFor(item, idx)}
+                          <input type="number" min="0" step="0.01" value={sellingFor(item, idx)} placeholder="set markup"
                             onChange={(e) => updateItem(item.product_id, { selling_price: e.target.value, markup: '' })}
                             className="w-24 text-center border rounded" />
                         </td>

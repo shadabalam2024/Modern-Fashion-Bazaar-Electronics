@@ -1,3 +1,4 @@
+import PoweredBy from '../components/PoweredBy'
 import { useState } from 'react'
 import { useDispatch } from 'react-redux'
 import { setUser } from '../store/slices/auth'
@@ -145,6 +146,7 @@ export default function Login() {
           </button>
         </form>
         )}
+        <PoweredBy className="mt-6" />
       </div>
     </div>
   )

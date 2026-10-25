@@ -15,7 +15,7 @@ module.exports = (ipcMain, db) => {
   });
 
   // Create invoice
-  ipcMain.handle('create-invoice', (event, { billNumber, customerId, items, discount, paymentMode, userId }) => {
+  ipcMain.handle('create-invoice', (event, { billNumber, customerId, items, discount, paymentMode, userId, invoiceType }) => {
     const denied = checkPermission(event, 'billing');
     if (denied) return denied;
     try {
@@ -49,8 +49,10 @@ module.exports = (ipcMain, db) => {
 
         // GST either sits inside the prices (tax is carved out of the total) or is added on top
         const shopSettings = db.prepare('SELECT gst_rate, prices_include_gst FROM shop_settings WHERE id = 1').get();
-        const gstRate = shopSettings?.gst_rate || 0;
-        const gstInclusive = !!shopSettings?.prices_include_gst;
+        // a plain 'invoice' carries no GST at all; a 'tax' invoice follows the shop's GST settings
+        const invoiceKind = invoiceType === 'plain' ? 'plain' : 'tax';
+        const gstRate = invoiceKind === 'plain' ? 0 : (shopSettings?.gst_rate || 0);
+        const gstInclusive = invoiceKind === 'tax' && !!shopSettings?.prices_include_gst;
         let gstAmount;
         if (gstInclusive) {
           gstAmount = Math.round((totalAmount - totalAmount / (1 + gstRate / 100)) * 100) / 100;
@@ -67,9 +69,9 @@ module.exports = (ipcMain, db) => {
         const amountPaid = paymentMode === 'credit' ? 0 : totalAmount;
 
         const invoice = db.prepare(`
-          INSERT INTO invoices (bill_number, customer_id, total_amount, discount_amount, gst_amount, gst_rate, gst_inclusive, amount_paid, payment_mode, created_by)
-          VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-        `).run(billNumber, customerId || null, totalAmount, discount, gstAmount, gstRate, gstInclusive ? 1 : 0, amountPaid, paymentMode, userId);
+          INSERT INTO invoices (bill_number, customer_id, total_amount, discount_amount, gst_amount, gst_rate, gst_inclusive, invoice_type, amount_paid, payment_mode, created_by)
+          VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        `).run(billNumber, customerId || null, totalAmount, discount, gstAmount, gstRate, gstInclusive ? 1 : 0, invoiceKind, amountPaid, paymentMode, userId);
 
         const itemInsert = db.prepare(`
           INSERT INTO invoice_items (invoice_id, product_id, quantity, unit_price, discount, subtotal)

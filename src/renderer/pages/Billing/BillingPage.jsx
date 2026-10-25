@@ -5,6 +5,7 @@ import Navbar from '../../components/Navbar'
 import Sidebar from '../../components/Sidebar'
 import { createScanTracker } from '../../utils/scanTracker'
 import useGlobalScanRedirect from '../../hooks/useGlobalScanRedirect'
+import { inr } from '../../utils/money'
 
 export default function BillingPage() {
   const user = useSelector(state => state.auth.user)
@@ -29,10 +30,12 @@ export default function BillingPage() {
 
   const [invoiceHistory, setInvoiceHistory] = useState([])
   const [historySearch, setHistorySearch] = useState('')
+  const [historyType, setHistoryType] = useState('all') // all | tax | plain
   const [viewingInvoice, setViewingInvoice] = useState(null)
   const [lastInvoiceId, setLastInvoiceId] = useState(null)
   const [gstRate, setGstRate] = useState(0)
   const [pricesIncludeGst, setPricesIncludeGst] = useState(false)
+  const [invoiceType, setInvoiceType] = useState('tax') // 'tax' = Tax Invoice (GST applied), 'plain' = Invoice (no tax)
   const [showCustomItemForm, setShowCustomItemForm] = useState(false)
   const [customItemName, setCustomItemName] = useState('')
   const [customItemPrice, setCustomItemPrice] = useState('')
@@ -278,10 +281,13 @@ export default function BillingPage() {
     }
   }
 
+  // bills made before the type was recorded count as tax invoices when they carry GST
+  const typeOf = (inv) => inv.invoice_type || (inv.gst_amount > 0 ? 'tax' : 'plain')
   const filteredHistory = invoiceHistory.filter(inv =>
-    !historySearch.trim() ||
+    (historyType === 'all' || typeOf(inv) === historyType) &&
+    (!historySearch.trim() ||
     inv.bill_number.toLowerCase().includes(historySearch.trim().toLowerCase()) ||
-    (inv.customer_name || '').toLowerCase().includes(historySearch.trim().toLowerCase())
+    (inv.customer_name || '').toLowerCase().includes(historySearch.trim().toLowerCase()))
   )
 
   const cartTotal = cart.reduce((sum, item) => sum + item.subtotal, 0)
@@ -290,9 +296,11 @@ export default function BillingPage() {
     : Number(discount || 0)
   const taxableAmount = Math.max(0, cartTotal - discountAmount)
   // Prices either already include GST (tax is carved out of the total) or GST is added on top
-  const gstAmount = pricesIncludeGst
-    ? taxableAmount - taxableAmount / (1 + gstRate / 100)
-    : taxableAmount * (gstRate / 100)
+  const taxApplies = invoiceType === 'tax' && gstRate > 0
+  const gstAmount = !taxApplies ? 0
+    : pricesIncludeGst
+      ? taxableAmount - taxableAmount / (1 + gstRate / 100)
+      : taxableAmount * (gstRate / 100)
   const grandTotal = pricesIncludeGst ? taxableAmount : taxableAmount + gstAmount
 
   const handleCompleteSale = async () => {
@@ -314,6 +322,7 @@ export default function BillingPage() {
       items: cart,
       discount: discountAmount,
       paymentMode,
+      invoiceType,
       userId: user?.id
     })
 
@@ -371,7 +380,7 @@ export default function BillingPage() {
                           className="w-full text-left px-4 py-2 hover:bg-gray-100 flex justify-between"
                         >
                           <span>{p.name} <span className="text-gray-400 text-sm">({p.sku})</span></span>
-                          <span className="text-gray-600">₹{p.selling_price} · {p.current_stock} in stock</span>
+                          <span className="text-gray-600">₹{inr(p.selling_price)} · {p.current_stock} in stock</span>
                         </button>
                       ))}
                     </div>
@@ -424,7 +433,7 @@ export default function BillingPage() {
                   {cart.map(item => (
                     <tr key={item.product_id} className="border-b">
                       <td className="py-2">{item.name}</td>
-                      <td className="py-2 text-right">₹{item.unit_price}</td>
+                      <td className="py-2 text-right">₹{inr(item.unit_price)}</td>
                       <td className="py-2 text-center">
                         <input
                           type="number"
@@ -462,7 +471,7 @@ export default function BillingPage() {
                           </div>
                         </div>
                       </td>
-                      <td className="py-2 text-right">₹{item.subtotal.toFixed(2)}</td>
+                      <td className="py-2 text-right">₹{inr(item.subtotal, 2)}</td>
                       <td className="py-2 text-right">
                         <button onClick={() => removeFromCart(item.product_id)} className="text-red-600 hover:underline">
                           Remove
@@ -480,6 +489,16 @@ export default function BillingPage() {
             </div>
 
             <div className="bg-white rounded-lg shadow p-6 h-fit">
+              <div className="flex rounded border overflow-hidden mb-4 text-sm font-medium">
+                <button type="button" onClick={() => setInvoiceType('tax')}
+                  className={`flex-1 py-2 ${invoiceType === 'tax' ? 'bg-blue-600 text-white' : 'bg-white text-gray-600'}`}>
+                  Tax Invoice{gstRate > 0 ? ` (GST ${gstRate}%)` : ''}
+                </button>
+                <button type="button" onClick={() => setInvoiceType('plain')}
+                  className={`flex-1 py-2 border-l ${invoiceType === 'plain' ? 'bg-blue-600 text-white' : 'bg-white text-gray-600'}`}>
+                  Invoice (no tax)
+                </button>
+              </div>
               <label className="block text-sm text-gray-600 mb-1">Customer</label>
 
               {selectedCustomer ? (
@@ -584,7 +603,7 @@ export default function BillingPage() {
                 </div>
               </div>
               {discountType === 'percent' && Number(discount) > 0 && (
-                <p className="text-xs text-gray-500 -mt-3 mb-4">= ₹{discountAmount.toFixed(2)} off</p>
+                <p className="text-xs text-gray-500 -mt-3 mb-4">= ₹{inr(discountAmount, 2)} off</p>
               )}
 
               <label className="block text-sm text-gray-600 mb-1">Payment Mode</label>
@@ -601,23 +620,23 @@ export default function BillingPage() {
               <div className="border-t pt-4 mb-4">
                 <div className="flex justify-between text-gray-600">
                   <span>Subtotal</span>
-                  <span>₹{cartTotal.toFixed(2)}</span>
+                  <span>₹{inr(cartTotal, 2)}</span>
                 </div>
                 {discountAmount > 0 && (
                   <div className="flex justify-between text-gray-600">
                     <span>Discount</span>
-                    <span>-₹{discountAmount.toFixed(2)}</span>
+                    <span>-₹{inr(discountAmount, 2)}</span>
                   </div>
                 )}
-                {gstRate > 0 && (
+                {taxApplies && (
                   <div className="flex justify-between text-gray-600">
                     <span>GST ({gstRate}%){pricesIncludeGst ? ' included' : ''}</span>
-                    <span>₹{gstAmount.toFixed(2)}</span>
+                    <span>₹{inr(gstAmount, 2)}</span>
                   </div>
                 )}
                 <div className="flex justify-between text-2xl font-bold mt-2">
                   <span>Total</span>
-                  <span>₹{grandTotal.toFixed(2)}</span>
+                  <span>₹{inr(grandTotal, 2)}</span>
                 </div>
               </div>
 
@@ -644,7 +663,17 @@ export default function BillingPage() {
 
           <div className="bg-white rounded-lg shadow overflow-hidden mt-8">
             <div className="flex justify-between items-end p-6 pb-0">
-              <h2 className="text-xl font-bold">Sales History</h2>
+              <div>
+                <h2 className="text-xl font-bold mb-2">Sales History</h2>
+                <div className="flex rounded border overflow-hidden text-sm w-fit">
+                  {[['all', 'All'], ['tax', 'Tax Invoice'], ['plain', 'Invoice']].map(([value, label], i) => (
+                    <button key={value} type="button" onClick={() => setHistoryType(value)}
+                      className={`px-4 py-1.5 ${i > 0 ? 'border-l' : ''} ${historyType === value ? 'bg-blue-600 text-white' : 'bg-white text-gray-600'}`}>
+                      {label}
+                    </button>
+                  ))}
+                </div>
+              </div>
               <div>
                 <label className="block text-xs text-gray-500 mb-1">Search</label>
                 <input
@@ -661,6 +690,7 @@ export default function BillingPage() {
                 <tr>
                   <th className="px-6 py-3 text-left">Bill #</th>
                   <th className="px-6 py-3 text-left">Customer</th>
+                  <th className="px-6 py-3 text-center">Type</th>
                   <th className="px-6 py-3 text-left">Date</th>
                   <th className="px-6 py-3 text-right">Total</th>
                   <th className="px-6 py-3 text-center">Payment</th>
@@ -672,8 +702,9 @@ export default function BillingPage() {
                   <tr key={inv.id} className="border-b hover:bg-gray-50">
                     <td className="px-6 py-4 font-mono text-sm">{inv.bill_number}</td>
                     <td className="px-6 py-4">{inv.customer_name || 'Walk-in'}</td>
+                    <td className="px-6 py-4 text-center text-sm">{typeOf(inv) === 'tax' ? 'Tax Invoice' : 'Invoice'}</td>
                     <td className="px-6 py-4">{new Date(inv.invoice_date).toLocaleString()}</td>
-                    <td className="px-6 py-4 text-right">₹{inv.total_amount.toFixed(2)}</td>
+                    <td className="px-6 py-4 text-right">₹{inr(inv.total_amount, 2)}</td>
                     <td className="px-6 py-4 text-center capitalize">{inv.payment_mode}</td>
                     <td className="px-6 py-4 text-right">
                       <button onClick={() => openInvoiceDetail(inv.id)} className="text-blue-600 hover:underline">View</button>
@@ -681,8 +712,8 @@ export default function BillingPage() {
                   </tr>
                 ))}
                 {filteredHistory.length === 0 && (
-                  <tr><td colSpan="6" className="py-8 text-center text-gray-400">
-                    {historySearch.trim() ? 'No invoices match your search' : 'No sales yet'}
+                  <tr><td colSpan="7" className="py-8 text-center text-gray-400">
+                    {historySearch.trim() || historyType !== 'all' ? 'No invoices match your search' : 'No sales yet'}
                   </td></tr>
                 )}
               </tbody>
@@ -719,8 +750,8 @@ export default function BillingPage() {
                   <tr key={item.id} className="border-b">
                     <td className="py-2">{item.product_name}</td>
                     <td className="py-2 text-center">{item.quantity}</td>
-                    <td className="py-2 text-right">₹{item.unit_price}</td>
-                    <td className="py-2 text-right">₹{item.subtotal.toFixed(2)}</td>
+                    <td className="py-2 text-right">₹{inr(item.unit_price)}</td>
+                    <td className="py-2 text-right">₹{inr(item.subtotal, 2)}</td>
                   </tr>
                 ))}
               </tbody>
@@ -728,17 +759,17 @@ export default function BillingPage() {
             <div className="border-t pt-3 space-y-1">
               <div className="flex justify-between text-sm text-gray-600">
                 <span>Discount</span>
-                <span>₹{viewingInvoice.discount_amount.toFixed(2)}</span>
+                <span>₹{inr(viewingInvoice.discount_amount, 2)}</span>
               </div>
               {viewingInvoice.gst_amount > 0 && (
                 <div className="flex justify-between text-sm text-gray-600">
                   <span>GST{viewingInvoice.gst_inclusive ? ' (included)' : ''}</span>
-                  <span>₹{viewingInvoice.gst_amount.toFixed(2)}</span>
+                  <span>₹{inr(viewingInvoice.gst_amount, 2)}</span>
                 </div>
               )}
               <div className="flex justify-between text-lg font-bold">
                 <span>Total</span>
-                <span>₹{viewingInvoice.total_amount.toFixed(2)}</span>
+                <span>₹{inr(viewingInvoice.total_amount, 2)}</span>
               </div>
               <div className="flex justify-between text-sm text-gray-600 capitalize">
                 <span>Payment Mode</span>

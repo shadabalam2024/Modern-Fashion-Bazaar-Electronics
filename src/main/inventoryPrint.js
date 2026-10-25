@@ -1,7 +1,7 @@
 const escapeHtml = (v) => String(v ?? '').replace(/[&<>"']/g, (c) => (
   { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]
 ));
-const money = (n) => `₹${Number(n || 0).toFixed(2)}`;
+const money = (n) => `₹${Number(n || 0).toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
 
 // Builds the printable stock sheet. `products` must already be in the order to print.
 function buildInventoryHtml({ shopName, filterLabel, products }) {

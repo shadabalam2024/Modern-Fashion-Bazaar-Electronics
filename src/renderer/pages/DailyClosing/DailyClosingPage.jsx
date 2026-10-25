@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react'
 import { useSelector } from 'react-redux'
 import Navbar from '../../components/Navbar'
 import Sidebar from '../../components/Sidebar'
+import { inr } from '../../utils/money'
 
 function Field({ label, className = '', children }) {
   return (
@@ -80,8 +81,8 @@ export default function DailyClosingPage() {
 
   const varianceLabel = (v) => {
     if (Math.abs(v) < 0.005) return { text: 'Matches exactly', className: 'text-green-600' }
-    if (v > 0) return { text: `₹${v.toFixed(2)} over`, className: 'text-blue-600' }
-    return { text: `₹${Math.abs(v).toFixed(2)} short`, className: 'text-red-600' }
+    if (v > 0) return { text: `₹${inr(v, 2)} over`, className: 'text-blue-600' }
+    return { text: `₹${inr(Math.abs(v), 2)} short`, className: 'text-red-600' }
   }
 
   return (
@@ -117,12 +118,12 @@ export default function DailyClosingPage() {
             {figures && (
               <form onSubmit={handleSave}>
                 <div className="grid grid-cols-2 gap-x-8 gap-y-2 text-sm mb-6">
-                  <div className="flex justify-between"><span className="text-gray-500">Cash Sales</span><span>₹{figures.cashSales.toFixed(2)}</span></div>
-                  <div className="flex justify-between"><span className="text-gray-500">Card Sales</span><span>₹{figures.cardSales.toFixed(2)}</span></div>
-                  <div className="flex justify-between"><span className="text-gray-500">Credit Sales (not cash)</span><span>₹{figures.creditSales.toFixed(2)}</span></div>
-                  <div className="flex justify-between"><span className="text-gray-500">Cash Payments Received</span><span>₹{figures.paymentsReceivedCash.toFixed(2)}</span></div>
-                  <div className="flex justify-between"><span className="text-gray-500">Card Payments Received</span><span>₹{figures.paymentsReceivedCard.toFixed(2)}</span></div>
-                  <div className="flex justify-between"><span className="text-gray-500">Cash Refunds Issued</span><span className="text-red-600">-₹{figures.refundsCash.toFixed(2)}</span></div>
+                  <div className="flex justify-between"><span className="text-gray-500">Cash Sales</span><span>₹{inr(figures.cashSales, 2)}</span></div>
+                  <div className="flex justify-between"><span className="text-gray-500">Card Sales</span><span>₹{inr(figures.cardSales, 2)}</span></div>
+                  <div className="flex justify-between"><span className="text-gray-500">Credit Sales (not cash)</span><span>₹{inr(figures.creditSales, 2)}</span></div>
+                  <div className="flex justify-between"><span className="text-gray-500">Cash Payments Received</span><span>₹{inr(figures.paymentsReceivedCash, 2)}</span></div>
+                  <div className="flex justify-between"><span className="text-gray-500">Card Payments Received</span><span>₹{inr(figures.paymentsReceivedCard, 2)}</span></div>
+                  <div className="flex justify-between"><span className="text-gray-500">Cash Refunds Issued</span><span className="text-red-600">-₹{inr(figures.refundsCash, 2)}</span></div>
                 </div>
 
                 <div className="grid grid-cols-2 gap-4 mb-4">
@@ -147,7 +148,7 @@ export default function DailyClosingPage() {
                 <div className="bg-gray-50 rounded p-4 mb-4 space-y-1">
                   <div className="flex justify-between text-sm">
                     <span className="text-gray-600">Expected Cash in Drawer</span>
-                    <span className="font-medium">₹{expectedCash.toFixed(2)}</span>
+                    <span className="font-medium">₹{inr(expectedCash, 2)}</span>
                   </div>
                   <div className="flex justify-between font-bold">
                     <span>Variance</span>
@@ -191,8 +192,8 @@ export default function DailyClosingPage() {
                   return (
                     <tr key={h.id} className="border-b hover:bg-gray-50 cursor-pointer" onClick={() => setDate(h.closing_date)}>
                       <td className="px-6 py-3">{h.closing_date}</td>
-                      <td className="px-6 py-3 text-right">₹{h.expected_cash.toFixed(2)}</td>
-                      <td className="px-6 py-3 text-right">₹{h.actual_cash.toFixed(2)}</td>
+                      <td className="px-6 py-3 text-right">₹{inr(h.expected_cash, 2)}</td>
+                      <td className="px-6 py-3 text-right">₹{inr(h.actual_cash, 2)}</td>
                       <td className={`px-6 py-3 text-right ${v.className}`}>{v.text}</td>
                       <td className="px-6 py-3">{h.closed_by_username || '-'}</td>
                     </tr>

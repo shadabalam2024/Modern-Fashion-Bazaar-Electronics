@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react'
 import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'recharts'
 import Navbar from '../components/Navbar'
 import Sidebar from '../components/Sidebar'
+import { inr } from '../utils/money'
 
 const toDateInput = (d) => d.toISOString().split('T')[0]
 
@@ -63,15 +64,15 @@ export default function Dashboard() {
           <div className="grid grid-cols-4 gap-4 mb-8">
             <div className="bg-white p-6 rounded-lg shadow">
               <p className="text-gray-600">Total Sales Today</p>
-              <p className="text-3xl font-bold">₹{todayStats.total_revenue?.toFixed(0) || 0}</p>
+              <p className="text-3xl font-bold">₹{inr(todayStats.total_revenue, 0) || 0}</p>
             </div>
             <div className="bg-white p-6 rounded-lg shadow">
               <p className="text-gray-600">Cash Received</p>
-              <p className="text-3xl font-bold">₹{todayStats.cash_received?.toFixed(0) || 0}</p>
+              <p className="text-3xl font-bold">₹{inr(todayStats.cash_received, 0) || 0}</p>
             </div>
             <div className="bg-white p-6 rounded-lg shadow">
               <p className="text-gray-600">Card Received</p>
-              <p className="text-3xl font-bold">₹{todayStats.card_received?.toFixed(0) || 0}</p>
+              <p className="text-3xl font-bold">₹{inr(todayStats.card_received, 0) || 0}</p>
             </div>
             <div className="bg-white p-6 rounded-lg shadow">
               <p className="text-gray-600">Invoices</p>
@@ -126,7 +127,7 @@ export default function Dashboard() {
                   <CartesianGrid strokeDasharray="3 3" />
                   <XAxis dataKey="label" tick={{ fontSize: 12 }} />
                   <YAxis tick={{ fontSize: 12 }} />
-                  <Tooltip formatter={(v) => `₹${v}`} />
+                  <Tooltip formatter={(v) => `₹${inr(v)}`} />
                   <Line type="monotone" dataKey="sales" stroke="#2563eb" strokeWidth={2} dot={false} />
                 </LineChart>
               </ResponsiveContainer>

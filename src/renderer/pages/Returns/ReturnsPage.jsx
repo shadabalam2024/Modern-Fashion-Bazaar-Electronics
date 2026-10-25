@@ -3,6 +3,7 @@ import { useSelector } from 'react-redux'
 import { useSearchParams } from 'react-router-dom'
 import Navbar from '../../components/Navbar'
 import Sidebar from '../../components/Sidebar'
+import { inr } from '../../utils/money'
 
 function Field({ label, className = '', children }) {
   return (
@@ -138,7 +139,7 @@ export default function ReturnsPage() {
       loadReturns()
       loadDamageLog()
       await openInvoice(selectedInvoice.id)
-      setMessage(`Return processed - refund ₹${refundTotal.toFixed(2)}`)
+      setMessage(`Return processed - refund ₹${inr(refundTotal, 2)}`)
     } else {
       setError(result.message || 'Failed to process return')
     }
@@ -194,7 +195,7 @@ export default function ReturnsPage() {
                     className="w-full text-left px-4 py-2 hover:bg-gray-50 flex justify-between"
                   >
                     <span>{inv.bill_number} — {inv.customer_name || 'Walk-in'}</span>
-                    <span className="text-gray-500">{new Date(inv.invoice_date).toLocaleDateString()} · ₹{inv.total_amount.toFixed(2)}</span>
+                    <span className="text-gray-500">{new Date(inv.invoice_date).toLocaleDateString()} · ₹{inr(inv.total_amount, 2)}</span>
                   </button>
                 ))}
               </div>
@@ -211,10 +212,10 @@ export default function ReturnsPage() {
                     <p className="text-sm text-gray-500">{selectedInvoice.customer_name || 'Walk-in'} · {new Date(selectedInvoice.invoice_date).toLocaleDateString()} · {selectedInvoice.payment_mode}</p>
                   </div>
                   <div className="text-right text-sm">
-                    <p>Total: ₹{selectedInvoice.total_amount.toFixed(2)}</p>
+                    <p>Total: ₹{inr(selectedInvoice.total_amount, 2)}</p>
                     {selectedInvoice.payment_mode === 'credit' && (
                       <p className={dueOnInvoice > 0 ? 'text-orange-600 font-bold' : 'text-green-600'}>
-                        {dueOnInvoice > 0 ? `Due: ₹${dueOnInvoice.toFixed(2)}` : 'Fully paid'}
+                        {dueOnInvoice > 0 ? `Due: ₹${inr(dueOnInvoice, 2)}` : 'Fully paid'}
                       </p>
                     )}
                   </div>
@@ -286,7 +287,7 @@ export default function ReturnsPage() {
                               </select>
                             )}
                           </td>
-                          <td className="py-2 px-2 text-right whitespace-nowrap">₹{(effectiveUnitPrice * q).toFixed(2)}</td>
+                          <td className="py-2 px-2 text-right whitespace-nowrap">₹{inr((effectiveUnitPrice * q), 2)}</td>
                         </tr>
                       )
                     })}
@@ -315,7 +316,7 @@ export default function ReturnsPage() {
                 </div>
 
                 <div className="flex justify-between items-center">
-                  <p className="text-lg font-bold">Refund Amount: ₹{refundTotal.toFixed(2)}</p>
+                  <p className="text-lg font-bold">Refund Amount: ₹{inr(refundTotal, 2)}</p>
                   <button type="submit" disabled={refundTotal <= 0} className="bg-red-600 text-white px-6 py-2 rounded hover:bg-red-700 disabled:opacity-50">
                     Process Return
                   </button>
@@ -357,7 +358,7 @@ export default function ReturnsPage() {
                     <td className="px-6 py-3">{r.customer_name || 'Walk-in'}</td>
                     <td className="px-6 py-3">{new Date(r.return_date).toLocaleString()}</td>
                     <td className="px-6 py-3">{r.refund_mode === 'cash' ? 'Cash Refund' : 'Adjust Against Due'}</td>
-                    <td className="px-6 py-3 text-right">₹{r.refund_amount.toFixed(2)}</td>
+                    <td className="px-6 py-3 text-right">₹{inr(r.refund_amount, 2)}</td>
                   </tr>
                 ))}
                 {filteredReturns.length === 0 && (
@@ -439,7 +440,7 @@ export default function ReturnsPage() {
                   <tr key={item.id} className="border-b">
                     <td className="py-2">{item.product_name}</td>
                     <td className="py-2 text-right">{item.quantity}</td>
-                    <td className="py-2 text-right">₹{item.subtotal.toFixed(2)}</td>
+                    <td className="py-2 text-right">₹{inr(item.subtotal, 2)}</td>
                     <td className="py-2 text-center">{item.restocked ? '✓' : dispositionLabel[item.disposition] || '—'}</td>
                   </tr>
                 ))}
@@ -447,7 +448,7 @@ export default function ReturnsPage() {
             </table>
             <div className="flex justify-between font-bold">
               <span>Refund Mode: {viewingReturn.refund_mode === 'cash' ? 'Cash' : 'Adjust Against Due'}</span>
-              <span>₹{viewingReturn.refund_amount.toFixed(2)}</span>
+              <span>₹{inr(viewingReturn.refund_amount, 2)}</span>
             </div>
           </div>
         </div>

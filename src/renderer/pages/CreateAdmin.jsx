@@ -1,3 +1,4 @@
+import PoweredBy from '../components/PoweredBy'
 import { useState } from 'react'
 
 export default function CreateAdmin({ onCreated }) {
@@ -71,6 +72,7 @@ export default function CreateAdmin({ onCreated }) {
             Create Account
           </button>
         </form>
+        <PoweredBy className="mt-6" />
       </div>
     </div>
   )

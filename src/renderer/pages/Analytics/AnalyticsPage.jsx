@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react'
 import { LineChart, Line, BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'recharts'
 import Navbar from '../../components/Navbar'
 import Sidebar from '../../components/Sidebar'
+import { inr } from '../../utils/money'
 
 const toDateInput = (d) => d.toISOString().split('T')[0]
 
@@ -109,11 +110,11 @@ export default function AnalyticsPage() {
           <div className="grid grid-cols-3 gap-4 mb-8">
             <div className="bg-white p-6 rounded-lg shadow">
               <p className="text-gray-600">Revenue (range)</p>
-              <p className="text-3xl font-bold">₹{totalRevenue.toFixed(0)}</p>
+              <p className="text-3xl font-bold">₹{inr(totalRevenue, 0)}</p>
             </div>
             <div className="bg-white p-6 rounded-lg shadow">
               <p className="text-gray-600">Profit (range)</p>
-              <p className="text-3xl font-bold">₹{totalProfit.toFixed(0)}</p>
+              <p className="text-3xl font-bold">₹{inr(totalProfit, 0)}</p>
             </div>
             <div className="bg-white p-6 rounded-lg shadow">
               <p className="text-gray-600">Invoices (range)</p>
@@ -164,11 +165,11 @@ export default function AnalyticsPage() {
                   </div>
                   <div className="bg-gray-50 p-4 rounded">
                     <p className="text-xs text-gray-500">Revenue (range)</p>
-                    <p className="text-xl font-bold">₹{productPerformance.revenue.toFixed(0)}</p>
+                    <p className="text-xl font-bold">₹{inr(productPerformance.revenue, 0)}</p>
                   </div>
                   <div className="bg-gray-50 p-4 rounded">
                     <p className="text-xs text-gray-500">Profit (range)</p>
-                    <p className="text-xl font-bold">₹{productPerformance.profit.toFixed(0)}</p>
+                    <p className="text-xl font-bold">₹{inr(productPerformance.profit, 0)}</p>
                   </div>
                 </div>
                 {productPerformance.daily.length === 0 ? (
@@ -198,7 +199,7 @@ export default function AnalyticsPage() {
                   <CartesianGrid strokeDasharray="3 3" />
                   <XAxis dataKey="date" tick={{ fontSize: 12 }} />
                   <YAxis tick={{ fontSize: 12 }} />
-                  <Tooltip formatter={(v) => `₹${v}`} />
+                  <Tooltip formatter={(v) => `₹${inr(v)}`} />
                   <Line type="monotone" dataKey="sales" stroke="#2563eb" strokeWidth={2} dot={false} />
                 </LineChart>
               </ResponsiveContainer>
@@ -222,7 +223,7 @@ export default function AnalyticsPage() {
                     <tr key={p.id} className="border-b">
                       <td className="py-2">{p.name}</td>
                       <td className="py-2 text-right">{p.quantity_sold}</td>
-                      <td className="py-2 text-right">₹{p.profit.toFixed(0)}</td>
+                      <td className="py-2 text-right">₹{inr(p.profit, 0)}</td>
                       <td className="py-2 text-right">{p.margin}%</td>
                     </tr>
                   ))}
@@ -248,7 +249,7 @@ export default function AnalyticsPage() {
                     <tr key={i} className="border-b">
                       <td className="py-2">{c.category || 'Uncategorized'}</td>
                       <td className="py-2 text-right">{c.items_sold}</td>
-                      <td className="py-2 text-right">₹{c.revenue.toFixed(0)}</td>
+                      <td className="py-2 text-right">₹{inr(c.revenue, 0)}</td>
                     </tr>
                   ))}
                   {categoryPerformance.length === 0 && (

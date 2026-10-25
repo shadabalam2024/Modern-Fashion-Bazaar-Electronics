@@ -1,4 +1,4 @@
-const { app, BrowserWindow, ipcMain, Menu } = require('electron');
+const { app, BrowserWindow, ipcMain, Menu, shell } = require('electron');
 const path = require('path');
 const isDev = process.env.NODE_ENV === 'development';
 const Database = require('./database/db');
@@ -325,6 +325,15 @@ app.on('ready', async () => {
   });
 
   ipcMain.handle('get-app-version', () => app.getVersion());
+
+  // Support links open in the user's own WhatsApp / mail app or browser - nothing else is allowed through
+  ipcMain.handle('open-support-link', async (event, url) => {
+    if (typeof url !== 'string' || !(url.startsWith('https://wa.me/') || url.startsWith('mailto:'))) {
+      return { success: false, message: 'Link not allowed' };
+    }
+    await shell.openExternal(url);
+    return { success: true };
+  });
 
   if (!isDev) {
     const { autoUpdater } = require('electron-updater');

@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react'
 import Navbar from '../../components/Navbar'
 import Sidebar from '../../components/Sidebar'
 import useAppUpdater from '../../hooks/useAppUpdater'
+import { COMPANY, WEBSITE, hasSupportContact, contactSupport } from '../../utils/brand'
 
 const PERMISSION_KEYS = ['dashboard', 'billing', 'inventory', 'purchase', 'customers', 'analytics', 'settings']
 
@@ -599,6 +600,44 @@ function UpdatesTab() {
   )
 }
 
+function AboutTab() {
+  const [version, setVersion] = useState('')
+  const [machineId, setMachineId] = useState('')
+  const [licensed, setLicensed] = useState(false)
+  const [shopName, setShopName] = useState('')
+
+  useEffect(() => {
+    window.ipcRenderer.invoke('get-app-version').then(setVersion)
+    window.ipcRenderer.invoke('check-license').then(l => { setMachineId(l.machineId || ''); setLicensed(!!l.licensed) })
+    window.ipcRenderer.invoke('get-shop-settings').then(s => setShopName(s?.shop_name || ''))
+  }, [])
+
+  const row = (label, value) => (
+    <div className="flex justify-between py-2 border-b text-sm">
+      <span className="text-gray-500">{label}</span>
+      <span className="font-medium">{value || '-'}</span>
+    </div>
+  )
+
+  return (
+    <div className="bg-white rounded-lg shadow p-6 max-w-xl">
+      <h2 className="text-xl font-bold mb-1">{COMPANY}</h2>
+      <p className="text-sm text-gray-500 mb-4">Billing &amp; inventory software</p>
+      {row('Version', version && `v${version}`)}
+      {row('Licensed to', licensed ? shopName : 'Not activated')}
+      {row('Machine ID', machineId)}
+      {WEBSITE && row('Website', WEBSITE)}
+      {hasSupportContact ? (
+        <button onClick={contactSupport} className="mt-5 bg-blue-600 text-white px-5 py-2 rounded hover:bg-blue-700">
+          Contact {COMPANY}
+        </button>
+      ) : (
+        <p className="mt-4 text-sm text-gray-400">Share your Machine ID with {COMPANY} when you need a licence or help.</p>
+      )}
+    </div>
+  )
+}
+
 export default function SettingsPage() {
   const [tab, setTab] = useState('shop')
 
@@ -608,7 +647,8 @@ export default function SettingsPage() {
     { key: 'users', label: 'Users & Roles' },
     { key: 'backup', label: 'Backup & Restore' },
     { key: 'demo', label: 'Demo Data' },
-    { key: 'updates', label: 'Updates' }
+    { key: 'updates', label: 'Updates' },
+    { key: 'about', label: 'About & Support' }
   ]
 
   return (
@@ -637,6 +677,7 @@ export default function SettingsPage() {
           {tab === 'backup' && <BackupTab />}
           {tab === 'demo' && <DemoDataTab />}
           {tab === 'updates' && <UpdatesTab />}
+          {tab === 'about' && <AboutTab />}
         </div>
       </div>
     </div>

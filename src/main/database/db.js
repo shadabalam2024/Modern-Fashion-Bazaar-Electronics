@@ -295,6 +295,7 @@ class ShopDatabase {
     addColumnIfMissing('customers', 'gstin', 'TEXT');
     addColumnIfMissing('invoices', 'gst_rate', 'REAL');
     addColumnIfMissing('invoices', 'gst_inclusive', 'INTEGER DEFAULT 0');
+    addColumnIfMissing('invoices', 'invoice_type', 'TEXT');
     addColumnIfMissing('purchase_items', 'landed_unit_cost', 'REAL');
     addColumnIfMissing('purchase_items', 'mrp', 'REAL');
     addColumnIfMissing('purchase_items', 'selling_price', 'REAL');

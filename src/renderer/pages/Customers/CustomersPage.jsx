@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react'
 import Navbar from '../../components/Navbar'
 import Sidebar from '../../components/Sidebar'
+import { inr } from '../../utils/money'
 
 function Field({ label, className = '', children }) {
   return (
@@ -156,7 +157,7 @@ export default function CustomersPage() {
                     <td className="px-6 py-4 text-gray-500">{c.email}</td>
                     <td className="px-6 py-4 text-center">{c.is_recurring ? '✓' : ''}</td>
                     <td className={`px-6 py-4 text-right ${c.credit_balance > 0 ? 'text-orange-600 font-bold' : ''}`}>
-                      ₹{c.credit_balance.toFixed(0)}
+                      ₹{inr(c.credit_balance, 0)}
                     </td>
                     <td className="px-6 py-4 text-right space-x-3 whitespace-nowrap">
                       {c.credit_balance > 0 && (
@@ -246,7 +247,7 @@ export default function CustomersPage() {
           <div className="bg-white rounded-lg shadow-lg p-6 w-full max-w-sm">
             <h2 className="text-xl font-bold mb-1">Record Payment</h2>
             <p className="text-sm text-gray-500 mb-4">
-              {payingCustomer.name} · Balance ₹{payingCustomer.credit_balance.toFixed(0)}
+              {payingCustomer.name} · Balance ₹{inr(payingCustomer.credit_balance, 0)}
             </p>
             <form onSubmit={handleRecordPayment}>
               <Field label="Amount" className="mb-4">
@@ -307,9 +308,9 @@ export default function CustomersPage() {
                       <tr key={inv.id} className="border-b">
                         <td className="py-2">{inv.bill_number}</td>
                         <td className="py-2">{new Date(inv.invoice_date).toLocaleDateString()}</td>
-                        <td className="py-2 text-right">₹{inv.total_amount.toFixed(2)}</td>
+                        <td className="py-2 text-right">₹{inr(inv.total_amount, 2)}</td>
                         <td className={`py-2 text-right ${due > 0 ? 'text-orange-600 font-bold' : 'text-green-600'}`}>
-                          {due > 0 ? `₹${due.toFixed(2)}` : 'Paid'}
+                          {due > 0 ? `₹${inr(due, 2)}` : 'Paid'}
                         </td>
                       </tr>
                     )
@@ -339,7 +340,7 @@ export default function CustomersPage() {
                       <td className="py-2">{new Date(p.payment_date).toLocaleString()}</td>
                       <td className="py-2 text-gray-500">{p.bill_number || 'Advance / general'}</td>
                       <td className="py-2 text-gray-500 capitalize">{p.payment_mode || 'cash'}</td>
-                      <td className="py-2 text-right text-green-600">₹{p.amount.toFixed(2)}</td>
+                      <td className="py-2 text-right text-green-600">₹{inr(p.amount, 2)}</td>
                     </tr>
                   ))}
                 </tbody>

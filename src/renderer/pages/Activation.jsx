@@ -1,3 +1,4 @@
+import PoweredBy from '../components/PoweredBy'
 import { useState, useEffect } from 'react'
 
 export default function Activation({ onActivated }) {
@@ -51,6 +52,7 @@ export default function Activation({ onActivated }) {
             Activate
           </button>
         </form>
+        <PoweredBy className="mt-6" />
       </div>
     </div>
   )

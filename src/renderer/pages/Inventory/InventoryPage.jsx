@@ -1,6 +1,7 @@
 import { useState, useEffect, useRef } from 'react'
 import Navbar from '../../components/Navbar'
 import Sidebar from '../../components/Sidebar'
+import { inr } from '../../utils/money'
 
 const emptyForm = {
   name: '', sku: '', barcode: '', category_id: '',
@@ -328,13 +329,13 @@ export default function InventoryPage() {
                     </td>
                     <td className="px-6 py-4 text-right">
                       <button onClick={() => openPriceHistory(p)} className="text-blue-600 hover:underline">
-                        ₹{p.cost_price}
+                        ₹{inr(p.cost_price)}
                       </button>
                     </td>
                     <td className="px-6 py-4 text-right text-gray-600">
-                      {p.landed_cost != null ? `₹${Number(p.landed_cost).toFixed(2)}` : '—'}
+                      {p.landed_cost != null ? `₹${inr(Number(p.landed_cost), 2)}` : '—'}
                     </td>
-                    <td className="px-6 py-4 text-right">₹{p.selling_price}</td>
+                    <td className="px-6 py-4 text-right">₹{inr(p.selling_price)}</td>
                     <td className="px-6 py-4 text-right space-x-3 whitespace-nowrap">
                       <button onClick={() => openLabels(p.name, [p])} className="text-blue-600 hover:underline">Labels</button>
                       <button onClick={() => openAdjustStock(p)} className="text-blue-600 hover:underline">Stock</button>
@@ -609,15 +610,15 @@ export default function InventoryPage() {
                         <td className="py-3 px-3 text-gray-500">
                           {h.source === 'purchase' ? `Purchase${h.supplier_name ? ` (${h.supplier_name})` : ''}` : 'Manual edit'}
                           {h.source === 'purchase' && h.unit_cost != null && (
-                            <div className="text-xs text-gray-400 mt-0.5">bought at ₹{h.unit_cost.toFixed(2)}/unit</div>
+                            <div className="text-xs text-gray-400 mt-0.5">bought at ₹{inr(h.unit_cost, 2)}/unit</div>
                           )}
                         </td>
                         <td className="py-3 px-3 text-right whitespace-nowrap">{h.quantity ?? '-'}</td>
-                        <td className="py-3 px-3 text-right text-gray-500 whitespace-nowrap">{hasOld ? `₹${h.old_cost_price.toFixed(2)}` : '—'}</td>
-                        <td className="py-3 px-3 text-right font-medium whitespace-nowrap">₹{h.new_cost_price.toFixed(2)}</td>
+                        <td className="py-3 px-3 text-right text-gray-500 whitespace-nowrap">{hasOld ? `₹${inr(h.old_cost_price, 2)}` : '—'}</td>
+                        <td className="py-3 px-3 text-right font-medium whitespace-nowrap">₹{inr(h.new_cost_price, 2)}</td>
                         <td className={`py-3 px-3 text-right font-medium whitespace-nowrap ${increased ? 'text-red-600' : decreased ? 'text-green-600' : 'text-gray-400'}`}>
                           {hasOld
-                            ? <>{increased ? '▲' : decreased ? '▼' : '—'} ₹{Math.abs(diff).toFixed(2)}<div className="text-xs font-normal">{pct !== null ? `(${diff >= 0 ? '+' : '-'}${Math.abs(pct).toFixed(1)}%)` : ''}</div></>
+                            ? <>{increased ? '▲' : decreased ? '▼' : '—'} ₹{inr(Math.abs(diff), 2)}<div className="text-xs font-normal">{pct !== null ? `(${diff >= 0 ? '+' : '-'}${inr(Math.abs(pct), 1)}%)` : ''}</div></>
                             : 'Initial'}
                         </td>
                       </tr>

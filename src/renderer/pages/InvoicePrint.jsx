@@ -1,6 +1,7 @@
 import { useState, useEffect, useRef } from 'react'
 import { amountInWords } from '../utils/amountInWords'
 import { invoiceTaxBreakup } from '../utils/invoiceTax'
+import { inr } from '../utils/money'
 
 export default function InvoicePrint({ invoiceId }) {
   const [invoice, setInvoice] = useState(null)
@@ -84,6 +85,8 @@ export default function InvoicePrint({ invoiceId }) {
 
   if (!isThermalMode) {
     const tax = invoiceTaxBreakup(invoice)
+    // 'Tax Invoice' bills carry GST; a plain 'Invoice' has no tax shown at all (older bills: by whether a GSTIN is set)
+    const isTax = invoice.invoice_type ? invoice.invoice_type === 'tax' : !!shop.gst_number
     const hasHsn = tax.lines.some(l => l.hsn_code)
     const hasItemDiscount = tax.lines.some(l => l.discount > 0)
     const money = (n) => Number(n || 0).toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })
@@ -98,7 +101,7 @@ export default function InvoicePrint({ invoiceId }) {
       </div>
     )
     const hasBank = shop.bank_account_no || shop.bank_name || shop.bank_ifsc || shop.bank_account_name
-    const title = shop.gst_number ? 'TAX INVOICE' : 'INVOICE'
+    const title = isTax ? 'TAX INVOICE' : 'INVOICE'
     const billTo = invoice.customer_name || 'Walk-in Customer'
 
     return (
@@ -124,7 +127,7 @@ export default function InvoicePrint({ invoiceId }) {
             <div style={{ lineHeight: 1.45 }}>
               <div style={{ fontSize: 17, fontWeight: 'bold', textTransform: 'uppercase' }}>{shop.shop_name || 'Modern Fashion Bazaar'}</div>
               {shop.shop_address && <div style={{ whiteSpace: 'pre-line' }}>{shop.shop_address}</div>}
-              {shop.gst_number && <div><strong>GSTIN:</strong> {shop.gst_number}</div>}
+              {isTax && shop.gst_number && <div><strong>GSTIN:</strong> {shop.gst_number}</div>}
               {shop.pan_number && <div><strong>PAN:</strong> {shop.pan_number}</div>}
               {shop.shop_phone && <div><strong>Mobile:</strong> {shop.shop_phone}</div>}
               {shop.shop_email && <div><strong>Email:</strong> {shop.shop_email}</div>}
@@ -147,8 +150,8 @@ export default function InvoicePrint({ invoiceId }) {
           <div style={{ fontWeight: 'bold', textTransform: 'uppercase' }}>{billTo}</div>
           {invoice.customer_address && <div style={{ whiteSpace: 'pre-line' }}>{invoice.customer_address}</div>}
           {invoice.customer_phone && <div>Mobile: {invoice.customer_phone}</div>}
-          {invoice.customer_gstin && <div>GSTIN: {invoice.customer_gstin}</div>}
-          {shop.place_of_supply && <div>Place of Supply: {shop.place_of_supply}</div>}
+          {isTax && invoice.customer_gstin && <div>GSTIN: {invoice.customer_gstin}</div>}
+          {isTax && shop.place_of_supply && <div>Place of Supply: {shop.place_of_supply}</div>}
         </div>
 
         <table style={{ width: '100%', borderCollapse: 'collapse' }}>
@@ -160,7 +163,7 @@ export default function InvoicePrint({ invoiceId }) {
               <th style={{ ...th, ...right }}>QTY.</th>
               <th style={{ ...th, ...right }}>RATE</th>
               {hasItemDiscount && <th style={{ ...th, ...right }}>DISC.</th>}
-              <th style={{ ...th, ...right }}>TAX</th>
+              {isTax && <th style={{ ...th, ...right }}>TAX</th>}
               <th style={{ ...th, ...right }}>AMOUNT</th>
             </tr>
           </thead>
@@ -173,10 +176,12 @@ export default function InvoicePrint({ invoiceId }) {
                 <td style={{ ...td, ...right, whiteSpace: 'nowrap' }}>{l.quantity} PCS</td>
                 <td style={{ ...td, ...right }}>{money(l.rateWithoutTax)}</td>
                 {hasItemDiscount && <td style={{ ...td, ...right }}>{l.discount > 0 ? money(l.discount) : '-'}</td>}
-                <td style={{ ...td, ...right }}>
-                  {money(l.tax)}
-                  <div style={{ fontSize: 9, color: '#777' }}>({tax.rate}%)</div>
-                </td>
+                {isTax && (
+                  <td style={{ ...td, ...right }}>
+                    {money(l.tax)}
+                    <div style={{ fontSize: 9, color: '#777' }}>({tax.rate}%)</div>
+                  </td>
+                )}
                 <td style={{ ...td, ...right }}>{money(l.amount)}</td>
               </tr>
             ))}
@@ -184,7 +189,7 @@ export default function InvoicePrint({ invoiceId }) {
               <td style={{ padding: '8px 6px', borderTop: '2px solid #000' }} colSpan={hasHsn ? 3 : 2}>SUBTOTAL</td>
               <td style={{ padding: '8px 6px', borderTop: '2px solid #000', ...right }}>{tax.qtyTotal}</td>
               <td style={{ padding: '8px 6px', borderTop: '2px solid #000' }} colSpan={hasItemDiscount ? 2 : 1}></td>
-              <td style={{ padding: '8px 6px', borderTop: '2px solid #000', ...right }}>{tax.taxColumnTotal != null ? `₹${money(tax.taxColumnTotal)}` : ''}</td>
+              {isTax && <td style={{ padding: '8px 6px', borderTop: '2px solid #000', ...right }}>{tax.taxColumnTotal != null ? `₹${money(tax.taxColumnTotal)}` : ''}</td>}
               <td style={{ padding: '8px 6px', borderTop: '2px solid #000', ...right }}>₹{money(tax.amountsTotal)}</td>
             </tr>
           </tbody>
@@ -212,9 +217,9 @@ export default function InvoicePrint({ invoiceId }) {
           <div style={{ width: 290 }}>
             {tax.invoiceDiscount > 0 && row('Subtotal', `₹${money(tax.amountsTotal)}`)}
             {tax.invoiceDiscount > 0 && row('Discount', `-₹${money(tax.invoiceDiscount)}`)}
-            {tax.gst > 0 && row('Taxable Amount', `₹${money(tax.taxable)}`)}
-            {tax.gst > 0 && row(`CGST @${tax.rate / 2}%`, `₹${money(tax.cgst)}`)}
-            {tax.gst > 0 && row(`SGST @${tax.rate / 2}%`, `₹${money(tax.sgst)}`)}
+            {isTax && tax.gst > 0 && row('Taxable Amount', `₹${money(tax.taxable)}`)}
+            {isTax && tax.gst > 0 && row(`CGST @${tax.rate / 2}%`, `₹${money(tax.cgst)}`)}
+            {isTax && tax.gst > 0 && row(`SGST @${tax.rate / 2}%`, `₹${money(tax.sgst)}`)}
             <div style={{ borderTop: '2px solid #000', margin: '4px 0' }}>{row('Total Amount', `₹${money(invoice.total_amount)}`, true)}</div>
             {row('Received Amount', `₹${money(amountPaid)}`)}
             {balance > 0.004 && row('Balance Due', `₹${money(balance)}`, true)}
@@ -286,7 +291,7 @@ export default function InvoicePrint({ invoiceId }) {
         <div style={{ fontSize: 18, fontWeight: 'bold' }}>{shop.shop_name || 'Modern Fashion Bazaar'}</div>
         {shop.shop_address && <div>{shop.shop_address}</div>}
         {shop.shop_phone && <div>Ph: {shop.shop_phone}</div>}
-        {shop.gst_number && <div>GSTIN: {shop.gst_number}</div>}
+        {(invoice.invoice_type ? invoice.invoice_type === 'tax' : true) && shop.gst_number && <div>GSTIN: {shop.gst_number}</div>}
       </div>
 
       <div style={{ borderTop: '1px dashed #000', margin: '8px 0' }} />
@@ -333,29 +338,29 @@ export default function InvoicePrint({ invoiceId }) {
 
       <div style={{ display: 'flex', justifyContent: 'space-between' }}>
         <span>Subtotal</span>
-        <span>₹{subtotal.toFixed(2)}</span>
+        <span>₹{inr(subtotal, 2)}</span>
       </div>
       {itemDiscounts > 0 && (
         <div style={{ display: 'flex', justifyContent: 'space-between' }}>
           <span>Item Discounts</span>
-          <span>-₹{itemDiscounts.toFixed(2)}</span>
+          <span>-₹{inr(itemDiscounts, 2)}</span>
         </div>
       )}
       {invoice.discount_amount > 0 && (
         <div style={{ display: 'flex', justifyContent: 'space-between' }}>
           <span>Discount</span>
-          <span>-₹{invoice.discount_amount.toFixed(2)}</span>
+          <span>-₹{inr(invoice.discount_amount, 2)}</span>
         </div>
       )}
       {invoice.gst_amount > 0 && (
         <div style={{ display: 'flex', justifyContent: 'space-between' }}>
           <span>GST{invoice.gst_inclusive ? ' (incl.)' : ''}{shop.gst_number ? ` (${shop.gst_number})` : ''}</span>
-          <span>₹{invoice.gst_amount.toFixed(2)}</span>
+          <span>₹{inr(invoice.gst_amount, 2)}</span>
         </div>
       )}
       <div style={{ display: 'flex', justifyContent: 'space-between', fontWeight: 'bold', fontSize: 15, marginTop: 4 }}>
         <span>Total</span>
-        <span>₹{invoice.total_amount.toFixed(2)}</span>
+        <span>₹{inr(invoice.total_amount, 2)}</span>
       </div>
       <div style={{ display: 'flex', justifyContent: 'space-between', marginTop: 4 }}>
         <span>Payment Mode</span>

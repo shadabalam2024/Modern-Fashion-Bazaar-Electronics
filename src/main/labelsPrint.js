@@ -3,7 +3,7 @@ const { barcodeSvg } = require('./barcodes');
 
 const PER_PAGE = 24; // 3 columns x 8 rows of 70mm x 37mm labels on A4
 
-const price = (n) => `₹${Number(n || 0).toFixed(Number.isInteger(Number(n)) ? 0 : 2)}`;
+const price = (n) => `₹${Number(n || 0).toLocaleString('en-IN', { minimumFractionDigits: 0, maximumFractionDigits: 2 })}`;
 
 // A4 sheet of barcode stickers. `labels`: [{ name, barcode, mrp, price }] - one entry per sticker.
 function buildLabelsHtml({ shopName, labels }) {
