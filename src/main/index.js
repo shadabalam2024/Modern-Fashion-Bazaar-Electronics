@@ -337,7 +337,7 @@ app.on('ready', async () => {
 
   if (!isDev) {
     const { autoUpdater } = require('electron-updater');
-    autoUpdater.autoDownload = true;
+    autoUpdater.autoDownload = false; // the user chooses: Update now / Later
     autoUpdater.autoInstallOnAppQuit = false;
 
     autoUpdater.on('update-available', (info) => {
@@ -369,6 +369,17 @@ app.on('ready', async () => {
       }
     });
 
+    ipcMain.handle('download-update', async (event) => {
+      const denied = checkPermission(event, 'admin');
+      if (denied) return denied;
+      try {
+        await autoUpdater.downloadUpdate();
+        return { success: true };
+      } catch (error) {
+        return { success: false, message: error.message };
+      }
+    });
+
     ipcMain.handle('install-update-now', (event) => {
       const denied = checkPermission(event, 'admin');
       if (denied) return denied;
@@ -383,6 +394,7 @@ app.on('ready', async () => {
     // so the Settings "Updates" tab doesn't error out while developing.
     ipcMain.handle('check-for-updates', () => ({ success: false, message: 'Updates are disabled in development mode' }));
     ipcMain.handle('install-update-now', () => ({ success: false, message: 'Updates are disabled in development mode' }));
+    ipcMain.handle('download-update', () => ({ success: false, message: 'Updates are disabled in development mode' }));
   }
 
   createWindow();

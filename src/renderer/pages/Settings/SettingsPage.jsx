@@ -554,12 +554,12 @@ function DemoDataTab() {
 }
 
 function UpdatesTab() {
-  const { status, version, progress, error, currentVersion, checkForUpdates, installNow } = useAppUpdater()
+  const { status, version, progress, error, currentVersion, checkForUpdates, updateNow, installNow } = useAppUpdater()
 
   const statusLine = () => {
     switch (status) {
       case 'checking': return 'Checking for updates...'
-      case 'available': return `Update v${version} found - downloading...`
+      case 'available': return `Update v${version} is available.`
       case 'downloading': return `Downloading update... ${Math.round(progress)}%`
       case 'downloaded': return 'Update downloaded and ready to install.'
       case 'not-available': return "You're on the latest version."
@@ -589,6 +589,12 @@ function UpdatesTab() {
         <div className="w-full bg-gray-200 rounded h-2 mt-2 max-w-sm">
           <div className="bg-blue-600 h-2 rounded" style={{ width: `${Math.round(progress)}%` }} />
         </div>
+      )}
+
+      {status === 'available' && (
+        <button onClick={updateNow} className="mt-4 bg-green-600 text-white px-4 py-2 rounded hover:bg-green-700">
+          Update now
+        </button>
       )}
 
       {status === 'downloaded' && (
