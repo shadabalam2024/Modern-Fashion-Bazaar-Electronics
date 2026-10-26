@@ -7,6 +7,9 @@ import { createScanTracker } from '../../utils/scanTracker'
 import useGlobalScanRedirect from '../../hooks/useGlobalScanRedirect'
 import { inr } from '../../utils/money'
 
+// 2 digits state code + 10-character PAN + entity digit + Z + check character
+const GSTIN_PATTERN = /^\d{2}[A-Z]{5}\d{4}[A-Z][A-Z\d]Z[A-Z\d]$/
+
 export default function BillingPage() {
   const user = useSelector(state => state.auth.user)
 
@@ -18,6 +21,7 @@ export default function BillingPage() {
   const [customerName, setCustomerName] = useState('')
   const [customerPhone, setCustomerPhone] = useState('')
   const [customerAddress, setCustomerAddress] = useState('')
+  const [customerGstin, setCustomerGstin] = useState('')
   const [selectedCustomer, setSelectedCustomer] = useState(null)
   const [discountType, setDiscountType] = useState('flat')
   const [discount, setDiscount] = useState(0)
@@ -251,6 +255,7 @@ export default function BillingPage() {
     setCustomerName(c.name || '')
     setCustomerPhone(c.phone || '')
     setCustomerAddress(c.address || '')
+    setCustomerGstin(c.gstin || '')
   }
 
   const clearCustomer = () => {
@@ -258,6 +263,7 @@ export default function BillingPage() {
     setCustomerName('')
     setCustomerPhone('')
     setCustomerAddress('')
+    setCustomerGstin('')
   }
 
   const handleQuickAddCustomer = async () => {
@@ -270,10 +276,11 @@ export default function BillingPage() {
       phone: customerPhone.trim(),
       email: '',
       address: customerAddress.trim(),
+      gstin: customerGstin.trim(),
       is_recurring: false
     })
     if (result.success) {
-      const newCustomer = { id: result.customerId, name: customerName.trim(), phone: customerPhone.trim(), address: customerAddress.trim(), credit_balance: 0 }
+      const newCustomer = { id: result.customerId, name: customerName.trim(), phone: customerPhone.trim(), address: customerAddress.trim(), gstin: customerGstin.trim().toUpperCase(), credit_balance: 0 }
       setCustomers(prev => [...prev, newCustomer])
       selectCustomer(newCustomer)
     } else {
@@ -311,14 +318,68 @@ export default function BillingPage() {
       setError('Cart is empty')
       return
     }
-    if (paymentMode === 'credit' && !selectedCustomer) {
+    if (paymentMode === 'credit' && !selectedCustomer && !customerName.trim()) {
       setError('Select a customer for credit sales')
       return
     }
 
+    const gstin = customerGstin.trim().toUpperCase()
+    if (invoiceType === 'tax' && gstin && !GSTIN_PATTERN.test(gstin)) {
+      setError('Customer GST number looks wrong - it should be 15 characters, like 10AMLPA3987H2Z5')
+      return
+    }
+
+    // A name typed in the customer box means a customer: reuse the one with the same phone number,
+    // otherwise register a new one automatically - no separate "Add" step needed.
+    let customer = selectedCustomer
+    if (!customer && customerName.trim()) {
+      const phone = customerPhone.trim()
+      const sameNumber = phone ? customers.find(c => (c.phone || '').trim() === phone) : null
+      if (sameNumber) {
+        customer = sameNumber
+      } else {
+        const added = await window.ipcRenderer.invoke('add-customer', {
+          name: customerName.trim(),
+          phone,
+          email: '',
+          address: customerAddress.trim(),
+          gstin: invoiceType === 'tax' ? gstin : '',
+          is_recurring: false
+        })
+        if (!added.success) {
+          setError(added.message || 'Failed to add customer')
+          return
+        }
+        customer = {
+          id: added.customerId, name: customerName.trim(), phone, address: customerAddress.trim(),
+          gstin: invoiceType === 'tax' ? gstin : '', credit_balance: 0
+        }
+        setCustomers(prev => [...prev, customer])
+      }
+    }
+
+    // keep the customer's record in step so the GST number is remembered for next time
+    if (invoiceType === 'tax' && customer && gstin !== (customer.gstin || '')) {
+      const saved = await window.ipcRenderer.invoke('update-customer', {
+        id: customer.id,
+        name: customer.name,
+        phone: customer.phone || '',
+        email: customer.email || '',
+        address: customer.address || '',
+        gstin,
+        is_recurring: !!customer.is_recurring
+      })
+      if (!saved.success) {
+        setError(saved.message || 'Could not save the customer GST number')
+        return
+      }
+      customer = { ...customer, gstin }
+      setCustomers(prev => prev.map(c => (c.id === customer.id ? customer : c)))
+    }
+
     const result = await window.ipcRenderer.invoke('create-invoice', {
       billNumber,
-      customerId: selectedCustomer?.id || null,
+      customerId: customer?.id || null,
       items: cart,
       discount: discountAmount,
       paymentMode,
@@ -561,7 +622,7 @@ export default function BillingPage() {
                   {(nameQuery || phoneQuery) && customerMatches.length === 0 && (
                     <div className="border rounded p-3 mt-1 bg-gray-50">
                       <p className="text-xs text-gray-500 mb-2">
-                        No customer found{phoneQuery ? ` for "${customerPhone}"` : ''} - fill in name, phone &amp; address to register
+                        No customer found{phoneQuery ? ` for "${customerPhone}"` : ''} - it is added automatically when you complete the sale, or add it now
                       </p>
                       <button
                         type="button"
@@ -571,6 +632,23 @@ export default function BillingPage() {
                         + Add & Select
                       </button>
                     </div>
+                  )}
+                </div>
+              )}
+
+              {invoiceType === 'tax' && (
+                <div className="mb-4">
+                  <label className="block text-xs text-gray-500 mb-1">Customer GST number (optional)</label>
+                  <input
+                    type="text"
+                    placeholder="e.g. 10AMLPA3987H2Z5"
+                    maxLength={15}
+                    value={customerGstin}
+                    onChange={(e) => setCustomerGstin(e.target.value.toUpperCase())}
+                    className="w-full px-4 py-2 border rounded font-mono"
+                  />
+                  {!selectedCustomer && customerGstin && (
+                    <p className="text-xs text-gray-500 mt-1">It is saved with the customer when you complete the sale.</p>
                   )}
                 </div>
               )}

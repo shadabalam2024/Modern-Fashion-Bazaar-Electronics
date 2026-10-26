@@ -383,7 +383,7 @@ app.on('ready', async () => {
     ipcMain.handle('install-update-now', (event) => {
       const denied = checkPermission(event, 'admin');
       if (denied) return denied;
-      autoUpdater.quitAndInstall();
+      autoUpdater.quitAndInstall(true, true); // silent install (no wizard), then reopen the app
       return { success: true };
     });
 
