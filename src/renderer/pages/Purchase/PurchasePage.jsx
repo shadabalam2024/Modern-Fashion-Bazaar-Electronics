@@ -1084,7 +1084,7 @@ export default function PurchasePage() {
         <div className="fixed inset-0 bg-black bg-opacity-40 flex items-center justify-center z-30">
           <form onSubmit={handleSubmitReturn} className="bg-white rounded-lg shadow-lg p-6 w-full max-w-lg max-h-[85vh] overflow-y-auto">
             <h2 className="text-xl font-bold mb-1">Return to Supplier</h2>
-            <p className="text-sm text-gray-500 mb-4">Purchase #{returning.purchase.id} · {returning.purchase.supplier_name}. Stock goes down and the refund shows in the Ledger as money in.</p>
+            <p className="text-sm text-gray-500 mb-4">Purchase #{returning.purchase.id} · {returning.purchase.supplier_name}. Stock goes down and the refund shows in the Account as money in.</p>
             <table className="w-full text-sm mb-4">
               <thead>
                 <tr className="border-b text-left">

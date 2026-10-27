@@ -143,7 +143,7 @@ module.exports = (ipcMain, db) => {
           logCostChange.run(item.product_id, product.cost_price, newCost, batchCost, item.quantity, purchaseId);
         }
 
-        db.prepare('UPDATE purchases SET status = ? WHERE id = ?').run('received', purchaseId);
+        db.prepare("UPDATE purchases SET status = ?, received_at = datetime('now') WHERE id = ?").run('received', purchaseId);
       });
 
       runReceive();

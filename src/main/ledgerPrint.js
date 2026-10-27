@@ -51,8 +51,8 @@ function buildLedgerHtml({ shopName, from, to, ledger }) {
     .total td { border-top: 2px solid #000; }
     .note { margin-top: 8px; color: #555; font-size: 9px; }
   </style></head><body>
-    <h1>${escapeHtml(shopName || 'Ledger')}</h1>
-    <p class="sub">Ledger${ledger.filtered ? ` - ${escapeHtml(ledger.filterLabel)} only` : ''} · ${escapeHtml(formatDate(from))} to ${escapeHtml(formatDate(to))} · printed ${escapeHtml(new Date().toLocaleString())}</p>
+    <h1>${escapeHtml(shopName || 'Account')}</h1>
+    <p class="sub">Account${ledger.filtered ? ` - ${escapeHtml(ledger.filterLabel)} only` : ''} · ${escapeHtml(formatDate(from))} to ${escapeHtml(formatDate(to))} · printed ${escapeHtml(new Date().toLocaleString())}</p>
     <div class="cards">
       ${card('Money In', money(s.moneyIn))}
       ${card('Money Out', money(s.moneyOut))}

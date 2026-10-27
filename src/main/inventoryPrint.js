@@ -8,13 +8,15 @@ function buildInventoryHtml({ shopName, filterLabel, products }) {
   const totals = products.reduce((t, p) => ({
     units: t.units + p.current_stock,
     cost: t.cost + p.current_stock * p.cost_price,
+    landed: t.landed + p.current_stock * (p.landed_cost ?? p.cost_price),
     sale: t.sale + p.current_stock * p.selling_price
-  }), { units: 0, cost: 0, sale: 0 });
+  }), { units: 0, cost: 0, landed: 0, sale: 0 });
 
   const rows = products.map((p, i) => `
     <tr>
       <td>${i + 1}</td>
       <td>${escapeHtml(p.name)}</td>
+      <td>${escapeHtml(p.brand || '-')}</td>
       <td>${escapeHtml(p.sku)}</td>
       <td>${escapeHtml(p.category_name || '-')}</td>
       <td class="r">${p.current_stock}</td>
@@ -40,14 +42,14 @@ function buildInventoryHtml({ shopName, filterLabel, products }) {
     <p class="sub">Inventory list${filterLabel ? ` (filtered: "${escapeHtml(filterLabel)}")` : ''} · ${escapeHtml(new Date().toLocaleString())}</p>
     <table>
       <thead><tr>
-        <th>#</th><th>Product</th><th>SKU</th><th>Category</th>
+        <th>#</th><th>Product</th><th>Brand</th><th>SKU</th><th>Category</th>
         <th class="r">Stock</th><th class="r">Cost</th><th class="r">Landed</th><th class="r">Price</th>
       </tr></thead>
       <tbody>${rows}</tbody>
     </table>
     <div class="totals">
       <p>Products: ${products.length} · Total units: ${totals.units}</p>
-      <p>Stock value at cost: ${money(totals.cost)} · At selling price: ${money(totals.sale)}</p>
+      <p>Stock value at cost: ${money(totals.cost)} · At landed cost: ${money(totals.landed)} · At selling price: ${money(totals.sale)}</p>
     </div>
   </body></html>`;
 }

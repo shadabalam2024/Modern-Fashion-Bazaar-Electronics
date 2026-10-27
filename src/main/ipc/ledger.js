@@ -207,7 +207,7 @@ module.exports = (ipcMain, db) => {
       const ledger = ledgerForOutput(from, to, filter, search);
       if (!ledger.success) return ledger;
       const shop = db.prepare('SELECT shop_name FROM shop_settings WHERE id = 1').get();
-      return await openPdfPreview(buildLedgerHtml({ shopName: shop?.shop_name, from, to, ledger }), 'Ledger - Print Preview');
+      return await openPdfPreview(buildLedgerHtml({ shopName: shop?.shop_name, from, to, ledger }), 'Account - Print Preview');
     } catch (error) {
       return { success: false, message: error.message };
     }
@@ -222,8 +222,8 @@ module.exports = (ipcMain, db) => {
       const workbook = buildLedgerWorkbook({ from, to, ledger });
 
       const result = await dialog.showSaveDialog({
-        title: 'Export Ledger',
-        defaultPath: `ledger-${from}-to-${to}.xlsx`,
+        title: 'Export Account',
+        defaultPath: `account-${from}-to-${to}.xlsx`,
         filters: [{ name: 'Excel Workbook', extensions: ['xlsx'] }]
       });
       if (result.canceled || !result.filePath) return { success: false, canceled: true };

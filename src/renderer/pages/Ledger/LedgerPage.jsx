@@ -78,7 +78,7 @@ export default function LedgerPage() {
     setError('')
     const result = await window.ipcRenderer.invoke('get-ledger', { from, to })
     if (result.success) setLedger(result)
-    else setError(result.message || 'Could not load the ledger')
+    else setError(result.message || 'Could not load the account')
   }
 
   useEffect(() => {
@@ -164,7 +164,7 @@ export default function LedgerPage() {
         <Navbar />
         <div className="p-8">
           <div className="flex justify-between items-center mb-6">
-            <h1 className="text-3xl font-bold">Ledger</h1>
+            <h1 className="text-3xl font-bold">Account</h1>
             <div className="flex gap-3">
               <button
                 onClick={handlePrint}

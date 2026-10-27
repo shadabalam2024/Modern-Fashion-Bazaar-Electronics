@@ -86,7 +86,7 @@ function buildLedgerWorkbook({ from, to, ledger }) {
     owner_in: 'Owner money in', owner_out: 'Owner withdrawal', expense: 'Expense'
   };
 
-  const sheet = workbook.addWorksheet('Ledger');
+  const sheet = workbook.addWorksheet('Account');
   sheet.columns = [
     { header: 'Date', key: 'date', width: 14 },
     { header: 'Type', key: 'type', width: 20 },

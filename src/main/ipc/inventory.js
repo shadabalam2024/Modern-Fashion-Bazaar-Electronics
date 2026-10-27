@@ -29,7 +29,11 @@ module.exports = (ipcMain, db) => {
           (SELECT pi.landed_unit_cost FROM purchase_items pi
              JOIN purchases pu ON pu.id = pi.purchase_id
             WHERE pi.product_id = p.id AND pu.status = 'received' AND pi.landed_unit_cost IS NOT NULL
-            ORDER BY pu.id DESC, pi.id DESC LIMIT 1) AS landed_cost
+            ORDER BY pu.id DESC, pi.id DESC LIMIT 1) AS landed_cost,
+          -- when this product last came into stock: its newest received purchase, or when it was created
+          MAX(p.created_at, COALESCE((SELECT MAX(COALESCE(pu.received_at, pu.purchase_date)) FROM purchase_items pi
+             JOIN purchases pu ON pu.id = pi.purchase_id
+            WHERE pi.product_id = p.id AND pu.status = 'received'), p.created_at)) AS stocked_at
         FROM products p
         LEFT JOIN categories c ON p.category_id = c.id
         WHERE p.is_custom IS NOT 1

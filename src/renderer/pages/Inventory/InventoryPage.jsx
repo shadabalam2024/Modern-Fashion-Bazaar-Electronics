@@ -21,7 +21,9 @@ export default function InventoryPage() {
   const [adjustReason, setAdjustReason] = useState('')
   const [error, setError] = useState('')
   const [search, setSearch] = useState('')
-  const [sortBy, setSortBy] = useState('stock-desc')
+  const [sortBy, setSortBy] = useState('recent')
+  const [brandFilter, setBrandFilter] = useState('') // '' = all brands
+  const [categoryFilter, setCategoryFilter] = useState('') // '' = all categories
   const [exportMessage, setExportMessage] = useState('')
   const [exportError, setExportError] = useState(false)
   const [viewingHistoryFor, setViewingHistoryFor] = useState(null)
@@ -63,7 +65,7 @@ export default function InventoryPage() {
     setExportMessage('')
     const result = await window.ipcRenderer.invoke('print-inventory', {
       productIds: filteredProducts.map(p => p.id),
-      filterLabel: search.trim()
+      filterLabel: [search.trim(), brandFilter && `brand ${brandFilter}`, categoryFilter && `category ${categoryFilter}`].filter(Boolean).join(', ')
     })
     if (!result.success) {
       setExportError(true)
@@ -218,20 +220,38 @@ export default function InventoryPage() {
   const SORT_OPTIONS = {
     'stock-desc': { label: 'Most in Stock', sort: (a, b) => b.current_stock - a.current_stock },
     'stock-asc': { label: 'Least in Stock', sort: (a, b) => a.current_stock - b.current_stock },
-    'newest': { label: 'Newest Added', sort: (a, b) => new Date(b.created_at) - new Date(a.created_at) || b.id - a.id },
-    'oldest': { label: 'Oldest Added', sort: (a, b) => new Date(a.created_at) - new Date(b.created_at) || a.id - b.id },
+    'recent': { label: 'Recently Stocked', sort: (a, b) => (b.stocked_at || '').localeCompare(a.stocked_at || '') || b.id - a.id },
+    // ids are handed out in the order products are added, so they are the most reliable "added" order
+    'newest': { label: 'Newest Added', sort: (a, b) => b.id - a.id },
+    'oldest': { label: 'Oldest Added', sort: (a, b) => a.id - b.id },
     'name': { label: 'Name (A-Z)', sort: (a, b) => a.name.localeCompare(b.name) }
   }
 
+  // the choices in the two filters come from the products themselves
+  const brandOptions = [...new Set(products.map(p => (p.brand || '').trim()).filter(Boolean))].sort((a, b) => a.localeCompare(b))
+  const categoryOptions = [...new Set(products.map(p => p.category_name).filter(Boolean))].sort((a, b) => a.localeCompare(b))
+
   const filteredProducts = products
+    .filter(p => !brandFilter || (p.brand || '').trim() === brandFilter)
+    .filter(p => !categoryFilter || p.category_name === categoryFilter)
     .filter(p => {
       if (!search.trim()) return true
       const q = search.trim().toLowerCase()
       return p.name.toLowerCase().includes(q) ||
+        (p.brand || '').toLowerCase().includes(q) ||
         (p.sku || '').toLowerCase().includes(q) ||
         (p.barcode || '').toLowerCase().includes(q)
     })
     .sort(SORT_OPTIONS[sortBy].sort)
+
+  // Worth of the stock shown in the list: units x cost / landed cost / selling price.
+  // A product never bought through Purchase has no landed cost yet, so its cost price stands in.
+  const totals = filteredProducts.reduce((t, p) => ({
+    units: t.units + p.current_stock,
+    cost: t.cost + p.current_stock * p.cost_price,
+    landed: t.landed + p.current_stock * (p.landed_cost ?? p.cost_price),
+    price: t.price + p.current_stock * p.selling_price
+  }), { units: 0, cost: 0, landed: 0, price: 0 })
 
   const duplicateBarcode = form.barcode.trim()
     ? products.find(p => p.barcode === form.barcode.trim() && p.id !== editingId)
@@ -243,12 +263,12 @@ export default function InventoryPage() {
   return (
     <div className="flex">
       <Sidebar />
-      <div className="flex-1">
+      <div className="flex-1 min-w-0">
         <Navbar />
-        <div className="p-8">
-          <div className="flex justify-between items-center mb-6">
+        <div className="p-6">
+          <div className="flex flex-wrap justify-between items-center gap-3 mb-6">
             <h1 className="text-3xl font-bold">Inventory</h1>
-            <div className="flex gap-3">
+            <div className="flex flex-wrap gap-2">
               <button
                 onClick={handlePrint}
                 disabled={filteredProducts.length === 0}
@@ -279,8 +299,8 @@ export default function InventoryPage() {
           </div>
           {exportMessage && <p className={`text-sm mb-4 ${exportError ? 'text-red-600' : 'text-green-600'}`}>{exportMessage}</p>}
 
-          <div className="flex gap-4 mb-4">
-            <div className="flex-1 max-w-sm">
+          <div className="flex flex-wrap gap-4 mb-4">
+            <div className="flex-1 min-w-[12rem] max-w-sm">
               <label className="block text-xs text-gray-500 mb-1">Search</label>
               <input
                 type="text"
@@ -289,6 +309,20 @@ export default function InventoryPage() {
                 onChange={(e) => setSearch(e.target.value)}
                 className="w-full px-4 py-2 border rounded"
               />
+            </div>
+            <div>
+              <label className="block text-xs text-gray-500 mb-1">Brand</label>
+              <select value={brandFilter} onChange={(e) => setBrandFilter(e.target.value)} className="px-4 py-2 border rounded">
+                <option value="">All brands</option>
+                {brandOptions.map(b => <option key={b} value={b}>{b}</option>)}
+              </select>
+            </div>
+            <div>
+              <label className="block text-xs text-gray-500 mb-1">Category</label>
+              <select value={categoryFilter} onChange={(e) => setCategoryFilter(e.target.value)} className="px-4 py-2 border rounded">
+                <option value="">All categories</option>
+                {categoryOptions.map(c => <option key={c} value={c}>{c}</option>)}
+              </select>
             </div>
             <div>
               <label className="block text-xs text-gray-500 mb-1">Sort By</label>
@@ -305,38 +339,40 @@ export default function InventoryPage() {
           </div>
 
           <div className="bg-white rounded-lg shadow overflow-hidden">
-            <table className="w-full">
+            <table className="w-full text-sm">
               <thead className="bg-gray-100 border-b">
                 <tr>
-                  <th className="px-6 py-3 text-left">Product</th>
-                  <th className="px-6 py-3 text-left">SKU</th>
-                  <th className="px-6 py-3 text-left">Category</th>
-                  <th className="px-6 py-3 text-right">Stock</th>
-                  <th className="px-6 py-3 text-right">Cost</th>
-                  <th className="px-6 py-3 text-right" title="Landed cost (cost + GST + transport, less discount) of the latest received purchase">Landed</th>
-                  <th className="px-6 py-3 text-right">Price</th>
-                  <th className="px-6 py-3 text-right">Actions</th>
+                  <th className="px-3 py-3 text-left">Product</th>
+                  <th className="px-3 py-3 text-left">Brand</th>
+                  <th className="px-3 py-3 text-left">SKU</th>
+                  <th className="px-3 py-3 text-left">Category</th>
+                  <th className="px-3 py-3 text-right">Stock</th>
+                  <th className="px-3 py-3 text-right">Cost</th>
+                  <th className="px-3 py-3 text-right" title="Landed cost (cost + GST + transport, less discount) of the latest received purchase">Landed</th>
+                  <th className="px-3 py-3 text-right">Price</th>
+                  <th className="px-3 py-3 text-right">Actions</th>
                 </tr>
               </thead>
               <tbody>
                 {filteredProducts.map(p => (
                   <tr key={p.id} className={`border-b hover:bg-gray-50 ${p.current_stock <= p.min_stock_level ? 'bg-orange-50' : ''}`}>
-                    <td className="px-6 py-4">{p.name}</td>
-                    <td className="px-6 py-4 text-gray-500">{p.sku}</td>
-                    <td className="px-6 py-4 text-gray-500">{p.category_name || '-'}</td>
-                    <td className={`px-6 py-4 text-right ${p.current_stock <= p.min_stock_level ? 'text-orange-600 font-bold' : ''}`}>
+                    <td className="px-3 py-3">{p.name}</td>
+                    <td className="px-3 py-3 text-gray-500">{p.brand || '-'}</td>
+                    <td className="px-3 py-3 text-gray-500">{p.sku}</td>
+                    <td className="px-3 py-3 text-gray-500">{p.category_name || '-'}</td>
+                    <td className={`px-3 py-3 text-right ${p.current_stock <= p.min_stock_level ? 'text-orange-600 font-bold' : ''}`}>
                       {p.current_stock}
                     </td>
-                    <td className="px-6 py-4 text-right">
+                    <td className="px-3 py-3 text-right">
                       <button onClick={() => openPriceHistory(p)} className="text-blue-600 hover:underline">
                         ₹{inr(p.cost_price)}
                       </button>
                     </td>
-                    <td className="px-6 py-4 text-right text-gray-600">
+                    <td className="px-3 py-3 text-right text-gray-600">
                       {p.landed_cost != null ? `₹${inr(Number(p.landed_cost), 2)}` : '—'}
                     </td>
-                    <td className="px-6 py-4 text-right">₹{inr(p.selling_price)}</td>
-                    <td className="px-6 py-4 text-right space-x-3 whitespace-nowrap">
+                    <td className="px-3 py-3 text-right">₹{inr(p.selling_price)}</td>
+                    <td className="px-3 py-3 text-right space-x-2 whitespace-nowrap">
                       <button onClick={() => openLabels(p.name, [p])} className="text-blue-600 hover:underline">Labels</button>
                       <button onClick={() => openAdjustStock(p)} className="text-blue-600 hover:underline">Stock</button>
                       <button onClick={() => openEditForm(p)} className="text-blue-600 hover:underline">Edit</button>
@@ -345,13 +381,32 @@ export default function InventoryPage() {
                   </tr>
                 ))}
                 {filteredProducts.length === 0 && (
-                  <tr><td colSpan="8"className="py-8 text-center text-gray-400">
-                    {search.trim() ? 'No products match your search' : 'No products yet'}
+                  <tr><td colSpan="9" className="py-8 text-center text-gray-400">
+                    {search.trim() || brandFilter || categoryFilter ? 'No products match your search' : 'No products yet'}
                   </td></tr>
                 )}
               </tbody>
+              {filteredProducts.length > 0 && (
+                <tfoot className="bg-gray-50 border-t-2 font-bold">
+                  <tr>
+                    <td className="px-3 py-3" colSpan="4" title="Each total is units in stock x that price">
+                      Total ({filteredProducts.length} {filteredProducts.length === 1 ? "product" : "products"})
+                    </td>
+                    <td className="px-3 py-3 text-right">{inr(totals.units)}</td>
+                    <td className="px-3 py-3 text-right">₹{inr(totals.cost, 2)}</td>
+                    <td className="px-3 py-3 text-right">₹{inr(totals.landed, 2)}</td>
+                    <td className="px-3 py-3 text-right">₹{inr(totals.price, 2)}</td>
+                    <td></td>
+                  </tr>
+                </tfoot>
+              )}
             </table>
           </div>
+          {filteredProducts.length > 0 && (
+            <p className="text-xs text-gray-400 mt-2">
+              Totals are the worth of the stock listed: units in stock x cost, landed cost and selling price. Products never bought through Purchase use their cost price in the Landed total.
+            </p>
+          )}
         </div>
       </div>
 
