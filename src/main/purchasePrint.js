@@ -46,6 +46,7 @@ function buildPurchaseHtml({ shopName, purchase }) {
         <strong>Supplier:</strong> ${escapeHtml(purchase.supplier_name)}<br>
         ${purchase.supplier_phone ? `Ph: ${escapeHtml(purchase.supplier_phone)}<br>` : ''}
         ${purchase.supplier_address ? `${escapeHtml(purchase.supplier_address)}<br>` : ''}
+        ${purchase.supplier_gstin ? `GSTIN: ${escapeHtml(purchase.supplier_gstin)}<br>` : ''}
       </div>
       <div style="text-align:right">
         <strong>Date:</strong> ${escapeHtml(formatDate(purchase.purchase_date))}<br>

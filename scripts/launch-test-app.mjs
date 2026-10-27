@@ -7,7 +7,7 @@ const APP_DIR = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..')
 /**
  * Launches the app under Playwright for driver scripts, and returns the
  * renderer window (skipping the devtools window that dev mode also opens).
- * Requires `npm run dev:react` already running on localhost:5173.
+ * Requires `npm run dev:react` already running on 127.0.0.1:5273.
  */
 export async function launchTestApp() {
   const env = { ...process.env, NODE_ENV: 'development' };

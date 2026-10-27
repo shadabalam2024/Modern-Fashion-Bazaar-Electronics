@@ -9,7 +9,7 @@ const TEMPLATE_HEADERS = ['Barcode', 'Product Name', 'Quantity', 'Cost', 'MRP', 
 module.exports = (ipcMain, db) => {
   // Validates the payload, recomputes every figure from it (the renderer's numbers are only a
   // preview) and writes the purchase header + lines. Used for both create and edit.
-  function savePurchase({ purchaseId, supplierId, userId, supplierBillNo, billDate, discount, gstRate, gstInCost, transportCost, items }) {
+  function savePurchase({ purchaseId, supplierId, userId, supplierBillNo, supplierGstin, billDate, discount, gstRate, gstInCost, transportCost, items }) {
     if (!supplierId) throw new Error('Select a supplier');
     if (!items || items.length === 0) throw new Error('Cannot create a purchase order with no items');
     for (const item of items) {
@@ -22,6 +22,11 @@ module.exports = (ipcMain, db) => {
     const totals = computePurchaseTotals({ items, discount, gstRate, transport: transportCost, gstInCost: !!gstInCost });
 
     return db.transaction(() => {
+      // the supplier's GST number lives on the supplier, so it is remembered for their next purchase
+      if (supplierGstin !== undefined) {
+        db.prepare('UPDATE suppliers SET gstin = ? WHERE id = ?')
+          .run(String(supplierGstin).trim().toUpperCase() || null, supplierId);
+      }
       let id = purchaseId;
       const header = [
         supplierId, totals.grandTotal, totals.transport, supplierBillNo || null, billDate || null,
@@ -234,9 +239,10 @@ module.exports = (ipcMain, db) => {
     if (denied) return denied;
     try {
       const result = db.prepare(`
-        INSERT INTO suppliers (name, contact_person, phone, email, address)
-        VALUES (?, ?, ?, ?, ?)
-      `).run(supplier.name, supplier.contact_person, supplier.phone, supplier.email, supplier.address);
+        INSERT INTO suppliers (name, contact_person, phone, email, address, gstin)
+        VALUES (?, ?, ?, ?, ?, ?)
+      `).run(supplier.name, supplier.contact_person, supplier.phone, supplier.email, supplier.address,
+        supplier.gstin ? String(supplier.gstin).trim().toUpperCase() : null);
 
       return { success: true, supplierId: result.lastInsertRowid };
     } catch (error) {
@@ -250,7 +256,7 @@ module.exports = (ipcMain, db) => {
     if (denied) return denied;
     try {
       const purchase = db.prepare(`
-        SELECT p.*, s.name AS supplier_name, s.phone AS supplier_phone, s.address AS supplier_address
+        SELECT p.*, s.name AS supplier_name, s.phone AS supplier_phone, s.address AS supplier_address, s.gstin AS supplier_gstin
         FROM purchases p JOIN suppliers s ON p.supplier_id = s.id WHERE p.id = ?
       `).get(purchaseId);
       const items = db.prepare(`

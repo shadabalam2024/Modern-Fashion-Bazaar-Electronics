@@ -38,7 +38,7 @@ function createWindow() {
   });
 
   const startUrl = isDev
-    ? 'http://localhost:5173'
+    ? 'http://127.0.0.1:5273'
     : `file://${path.join(__dirname, '../../dist/index.html')}`;
 
   mainWindow.loadURL(startUrl);
@@ -75,7 +75,7 @@ function openPrintWindow(invoiceId) {
   });
 
   const startUrl = isDev
-    ? `http://localhost:5173/#print=${invoiceId}`
+    ? `http://127.0.0.1:5273/#print=${invoiceId}`
     : `file://${path.join(__dirname, '../../dist/index.html')}#print=${invoiceId}`;
 
   const printWebContentsId = printWindow.webContents.id;

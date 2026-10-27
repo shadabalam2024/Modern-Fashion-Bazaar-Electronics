@@ -12,6 +12,8 @@ const todayStr = () => {
   const d = new Date()
   return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`
 }
+// 2 digits state code + 10-character PAN + entity digit + Z + check character
+const GSTIN_PATTERN = /^\d{2}[A-Z]{5}\d{4}[A-Z][A-Z\d]Z[A-Z\d]$/
 const money = (n) => `₹${inr(Number(n || 0), 2)}`
 const emptyNewProduct = {
   name: '', sku: '', barcode: '', category_id: '', cost_price: '', selling_price: '',
@@ -34,6 +36,7 @@ export default function PurchasePage() {
   const [purchases, setPurchases] = useState([])
   const [supplierId, setSupplierId] = useState('')
   const [supplierBillNo, setSupplierBillNo] = useState('')
+  const [supplierGstin, setSupplierGstin] = useState('')
   const [billDate, setBillDate] = useState(todayStr())
   const [items, setItems] = useState([])
   const [discount, setDiscount] = useState('')
@@ -44,7 +47,7 @@ export default function PurchasePage() {
   const [searchTerm, setSearchTerm] = useState('')
   const [searchResults, setSearchResults] = useState([])
   const [showSupplierForm, setShowSupplierForm] = useState(false)
-  const [supplierForm, setSupplierForm] = useState({ name: '', contact_person: '', phone: '', email: '', address: '' })
+  const [supplierForm, setSupplierForm] = useState({ name: '', contact_person: '', phone: '', email: '', address: '', gstin: '' })
   const [message, setMessage] = useState('')
   const [error, setError] = useState('')
   const [importIssues, setImportIssues] = useState([])
@@ -309,7 +312,8 @@ export default function PurchasePage() {
     if (result.success) {
       await loadSuppliers()
       setSupplierId(String(result.supplierId))
-      setSupplierForm({ name: '', contact_person: '', phone: '', email: '', address: '' })
+      setSupplierGstin((supplierForm.gstin || '').trim().toUpperCase())
+      setSupplierForm({ name: '', contact_person: '', phone: '', email: '', address: '', gstin: '' })
       setShowSupplierForm(false)
     } else {
       setError(result.message)
@@ -320,6 +324,7 @@ export default function PurchasePage() {
     setItems([])
     setSupplierId('')
     setSupplierBillNo('')
+    setSupplierGstin('')
     setBillDate(todayStr())
     setDiscount('')
     setGstRate('')
@@ -342,10 +347,17 @@ export default function PurchasePage() {
       return
     }
 
+    const gstin = supplierGstin.trim().toUpperCase()
+    if (gstin && !GSTIN_PATTERN.test(gstin)) {
+      setError('Supplier GST number looks wrong - it should be 15 characters, like 10AMLPA3987H2Z5')
+      return
+    }
+
     const payload = {
       purchaseId: editingId,
       supplierId,
       supplierBillNo: supplierBillNo.trim(),
+      supplierGstin: gstin,
       billDate,
       discount: totals.discount,
       gstRate: parseFloat(gstRate) || 0,
@@ -387,6 +399,7 @@ export default function PurchasePage() {
     setEditingId(p.id)
     setSupplierId(String(p.supplier_id))
     setSupplierBillNo(p.supplier_bill_no || '')
+    setSupplierGstin(suppliers.find(x => x.id === p.supplier_id)?.gstin || '')
     setBillDate(p.bill_date || todayStr())
     setDiscount(p.discount_amount ? String(p.discount_amount) : '')
     setGstRate(p.gst_rate ? String(p.gst_rate) : '')
@@ -520,7 +533,10 @@ export default function PurchasePage() {
                   <div className="flex gap-2">
                     <select
                       value={supplierId}
-                      onChange={(e) => setSupplierId(e.target.value)}
+                      onChange={(e) => {
+                        setSupplierId(e.target.value)
+                        setSupplierGstin(suppliers.find(x => String(x.id) === e.target.value)?.gstin || '')
+                      }}
                       className="flex-1 px-4 py-2 border rounded"
                     >
                       <option value="">Select Supplier</option>
@@ -536,6 +552,13 @@ export default function PurchasePage() {
                       + Supplier
                     </button>
                   </div>
+                </Field>
+                <Field label="Supplier GST No (optional)" className="md:col-span-3">
+                  <input
+                    placeholder="e.g. 10AMLPA3987H2Z5" maxLength={15}
+                    value={supplierGstin} onChange={(e) => setSupplierGstin(e.target.value.toUpperCase())}
+                    className="w-full px-4 py-2 border rounded font-mono"
+                  />
                 </Field>
                 <Field label="Supplier Bill No" className="md:col-span-2">
                   <input
@@ -575,7 +598,12 @@ export default function PurchasePage() {
                       onChange={(e) => setSupplierForm({ ...supplierForm, email: e.target.value })}
                       className="w-full px-3 py-2 border rounded" />
                   </Field>
-                  <Field label="Address">
+                  <Field label="GST Number (optional)">
+                    <input placeholder="GST Number (optional)" maxLength={15} value={supplierForm.gstin}
+                      onChange={(e) => setSupplierForm({ ...supplierForm, gstin: e.target.value.toUpperCase() })}
+                      className="w-full px-4 py-2 border rounded font-mono" />
+                  </Field>
+                  <Field label="Address" className="col-span-2">
                     <input placeholder="Address" value={supplierForm.address}
                       onChange={(e) => setSupplierForm({ ...supplierForm, address: e.target.value })}
                       className="w-full px-3 py-2 border rounded" />
