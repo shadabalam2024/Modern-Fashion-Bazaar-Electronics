@@ -316,6 +316,7 @@ class ShopDatabase {
     addColumnIfMissing('products', 'mrp', 'REAL');
     addColumnIfMissing('products', 'size', 'TEXT');
     addColumnIfMissing('products', 'color', 'TEXT');
+    addColumnIfMissing('products', 'item_name', 'TEXT');
     addColumnIfMissing('products', 'style_name', 'TEXT');
 
     // Backfill: non-credit invoices are paid in full at sale time

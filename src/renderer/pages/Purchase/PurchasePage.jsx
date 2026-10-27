@@ -17,7 +17,7 @@ const GSTIN_PATTERN = /^\d{2}[A-Z]{5}\d{4}[A-Z][A-Z\d]Z[A-Z\d]$/
 const money = (n) => `₹${inr(Number(n || 0), 2)}`
 const emptyNewProduct = {
   name: '', sku: '', barcode: '', category_id: '', cost_price: '', selling_price: '',
-  mrp: '', brand: '', hsn_code: '', color: '', sizes: ''
+  mrp: '', brand: '', hsn_code: '', color: '', sizes: '', item_name: ''
 }
 
 function Field({ label, className = '', children }) {
@@ -227,8 +227,11 @@ export default function PurchasePage() {
       cost_price: parseFloat(f.cost_price),
       selling_price: parseFloat(f.selling_price),
       mrp: f.mrp === '' ? null : parseFloat(f.mrp),
-      brand: f.brand, hsn_code: f.hsn_code, min_stock_level: 5
+      brand: f.brand, hsn_code: f.hsn_code, min_stock_level: 5,
+      item_name: f.item_name.trim()
     }
+    // Shown name: Product - Item (variants add colour and size after this)
+    const fullName = [f.name.trim(), f.item_name.trim()].filter(Boolean).join(' - ')
 
     if (sizes.length > 0) {
       // One product per size, each with its own barcode and stock
@@ -248,7 +251,8 @@ export default function PurchasePage() {
       return
     }
     const result = await window.ipcRenderer.invoke('add-product', {
-      name: f.name.trim(),
+      name: fullName,
+      style_name: f.name.trim(),
       sku: f.sku || null,
       barcode: f.barcode || null,
       autoBarcode: true,
@@ -258,7 +262,7 @@ export default function PurchasePage() {
     })
 
     if (result.success) {
-      addItem({ id: result.productId, name: f.name.trim(), cost_price: common.cost_price, selling_price: common.selling_price, mrp: common.mrp })
+      addItem({ id: result.productId, name: fullName, cost_price: common.cost_price, selling_price: common.selling_price, mrp: common.mrp })
       resetNewProduct()
     } else {
       setError(result.message || 'Failed to add product')
@@ -659,6 +663,11 @@ export default function PurchasePage() {
                   <Field label="Product Name" className="col-span-2">
                     <input required placeholder="Product Name" value={newProductForm.name}
                       onChange={(e) => setNewProductForm({ ...newProductForm, name: e.target.value })}
+                      className="w-full px-3 py-2 border rounded" />
+                  </Field>
+                  <Field label="Item Name (optional)" className="col-span-2">
+                    <input placeholder="e.g. Fridge, Iron - the kind of item (added to the name after Product Name)" value={newProductForm.item_name}
+                      onChange={(e) => setNewProductForm({ ...newProductForm, item_name: e.target.value })}
                       className="w-full px-3 py-2 border rounded" />
                   </Field>
                   <Field label="Sizes (optional, comma separated)" className="col-span-2">

@@ -6,7 +6,7 @@ import { inr } from '../../utils/money'
 const emptyForm = {
   name: '', sku: '', barcode: '', category_id: '',
   cost_price: '', selling_price: '', current_stock: '', min_stock_level: '5',
-  mrp: '', brand: '', season: '', hsn_code: '', size: '', color: ''
+  mrp: '', brand: '', season: '', hsn_code: '', size: '', color: '', item_name: '', style_name: ''
 }
 
 export default function InventoryPage() {
@@ -24,6 +24,7 @@ export default function InventoryPage() {
   const [sortBy, setSortBy] = useState('recent')
   const [brandFilter, setBrandFilter] = useState('') // '' = all brands
   const [categoryFilter, setCategoryFilter] = useState('') // '' = all categories
+  const [itemFilter, setItemFilter] = useState('') // '' = all items (Fridge, Iron ...)
   const [exportMessage, setExportMessage] = useState('')
   const [exportError, setExportError] = useState(false)
   const [viewingHistoryFor, setViewingHistoryFor] = useState(null)
@@ -65,7 +66,7 @@ export default function InventoryPage() {
     setExportMessage('')
     const result = await window.ipcRenderer.invoke('print-inventory', {
       productIds: filteredProducts.map(p => p.id),
-      filterLabel: [search.trim(), brandFilter && `brand ${brandFilter}`, categoryFilter && `category ${categoryFilter}`].filter(Boolean).join(', ')
+      filterLabel: [search.trim(), brandFilter && `brand ${brandFilter}`, categoryFilter && `category ${categoryFilter}`, itemFilter && `item ${itemFilter}`].filter(Boolean).join(', ')
     })
     if (!result.success) {
       setExportError(true)
@@ -137,7 +138,7 @@ export default function InventoryPage() {
       current_stock: product.current_stock,
       min_stock_level: product.min_stock_level,
       mrp: product.mrp ?? '', brand: product.brand || '', season: product.season || '',
-      hsn_code: product.hsn_code || '', size: product.size || '', color: product.color || ''
+      hsn_code: product.hsn_code || '', size: product.size || '', color: product.color || '', item_name: product.item_name || '', style_name: product.style_name || ''
     })
     setEditingId(product.id)
     setError('')
@@ -170,7 +171,7 @@ export default function InventoryPage() {
       current_stock: parseInt(form.current_stock) || 0,
       min_stock_level: parseInt(form.min_stock_level) || 5,
       mrp: form.mrp === '' ? null : parseFloat(form.mrp),
-      brand: form.brand, season: form.season, hsn_code: form.hsn_code, size: form.size, color: form.color,
+      brand: form.brand, season: form.season, hsn_code: form.hsn_code, size: form.size, color: form.color, item_name: form.item_name, style_name: form.style_name,
       autoBarcode: !editingId // a new product with no barcode gets the next number
     }
 
@@ -229,11 +230,13 @@ export default function InventoryPage() {
 
   // the choices in the two filters come from the products themselves
   const brandOptions = [...new Set(products.map(p => (p.brand || '').trim()).filter(Boolean))].sort((a, b) => a.localeCompare(b))
+  const itemOptions = [...new Set(products.map(p => (p.item_name || '').trim()).filter(Boolean))].sort((a, b) => a.localeCompare(b))
   const categoryOptions = [...new Set(products.map(p => p.category_name).filter(Boolean))].sort((a, b) => a.localeCompare(b))
 
   const filteredProducts = products
     .filter(p => !brandFilter || (p.brand || '').trim() === brandFilter)
     .filter(p => !categoryFilter || p.category_name === categoryFilter)
+    .filter(p => !itemFilter || (p.item_name || '').trim() === itemFilter)
     .filter(p => {
       if (!search.trim()) return true
       const q = search.trim().toLowerCase()
@@ -328,6 +331,13 @@ export default function InventoryPage() {
               </select>
             </div>
             <div>
+              <label className="block text-xs text-gray-500 mb-1">Item</label>
+              <select value={itemFilter} onChange={(e) => setItemFilter(e.target.value)} className="px-4 py-2 border rounded max-w-[14rem]">
+                <option value="">All items</option>
+                {itemOptions.map(n => <option key={n} value={n}>{n}</option>)}
+              </select>
+            </div>
+            <div>
               <label className="block text-xs text-gray-500 mb-1">Sort By</label>
               <select
                 value={sortBy}
@@ -385,7 +395,7 @@ export default function InventoryPage() {
                 ))}
                 {filteredProducts.length === 0 && (
                   <tr><td colSpan="9" className="py-8 text-center text-gray-400">
-                    {search.trim() || brandFilter || categoryFilter ? 'No products match your search' : 'No products yet'}
+                    {search.trim() || brandFilter || categoryFilter || itemFilter ? 'No products match your search' : 'No products yet'}
                   </td></tr>
                 )}
               </tbody>
@@ -422,6 +432,12 @@ export default function InventoryPage() {
               <input
                 type="text" placeholder="Product Name" required
                 value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })}
+                className="w-full px-4 py-2 border rounded mb-3"
+              />
+              <label className="block text-xs text-gray-500 mb-1">Item Name (optional)</label>
+              <input
+                type="text" placeholder="e.g. Fridge, Iron - the kind of item"
+                value={form.item_name} onChange={(e) => setForm({ ...form, item_name: e.target.value })}
                 className="w-full px-4 py-2 border rounded mb-3"
               />
               <div className="grid grid-cols-2 gap-3 mb-3">

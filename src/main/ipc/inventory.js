@@ -3,7 +3,7 @@ const { checkPermission } = require('../session');
 const { buildInventoryWorkbook } = require('../excelExport');
 const { nextBarcodes } = require('../barcodes');
 
-const EXTRA_COLUMNS = ['brand', 'season', 'hsn_code', 'mrp', 'size', 'color', 'style_name'];
+const EXTRA_COLUMNS = ['brand', 'season', 'hsn_code', 'mrp', 'size', 'color', 'style_name', 'item_name'];
 
 module.exports = (ipcMain, db) => {
   const insertProduct = db.prepare(`
@@ -90,7 +90,7 @@ module.exports = (ipcMain, db) => {
   });
 
   // One product per size (and colour) of the same style, each with its own barcode and stock.
-  // Names become "Style - Colour - Size" so Billing, receipts and reports show them as-is.
+  // Names become "Style - Item - Colour - Size" so Billing, receipts and reports show them as-is.
   ipcMain.handle('add-product-variants', (event, { style, color, sizes, ...product }) => {
     const denied = checkPermission(event, 'inventory');
     if (denied) return denied;
@@ -102,7 +102,7 @@ module.exports = (ipcMain, db) => {
       const created = db.transaction(() => {
         const barcodes = nextBarcodes(db, sizeList.length);
         return sizeList.map((size, i) => {
-          const name = [String(style).trim(), String(color || '').trim(), size].filter(Boolean).join(' - ');
+          const name = [String(style).trim(), String(product.item_name || '').trim(), String(color || '').trim(), size].filter(Boolean).join(' - ');
           const result = insertProduct.run(
             name, null, barcodes[i], product.category_id || null, product.cost_price, product.selling_price,
             0, product.min_stock_level || 5,
