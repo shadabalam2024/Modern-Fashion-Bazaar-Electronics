@@ -976,6 +976,9 @@ export default function PurchasePage() {
                 <p className="text-sm text-gray-500">
                   {viewingPurchase.supplier_name} · {new Date(viewingPurchase.purchase_date).toLocaleString()}
                 </p>
+                {viewingPurchase.supplier_gstin && (
+                  <p className="text-sm text-gray-500">Supplier GSTIN: <span className="font-mono">{viewingPurchase.supplier_gstin}</span></p>
+                )}
                 {(viewingPurchase.supplier_bill_no || viewingPurchase.bill_date) && (
                   <p className="text-sm text-gray-500">
                     Supplier bill {viewingPurchase.supplier_bill_no || '-'}

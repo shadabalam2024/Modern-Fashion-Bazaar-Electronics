@@ -253,7 +253,7 @@ app.on('ready', async () => {
     if (denied) return denied;
     try {
       const purchase = db.prepare(`
-        SELECT p.*, s.name AS supplier_name, s.phone AS supplier_phone, s.address AS supplier_address
+        SELECT p.*, s.name AS supplier_name, s.phone AS supplier_phone, s.address AS supplier_address, s.gstin AS supplier_gstin
         FROM purchases p JOIN suppliers s ON p.supplier_id = s.id WHERE p.id = ?
       `).get(purchaseId);
       if (!purchase) return { success: false, message: 'Purchase not found' };
