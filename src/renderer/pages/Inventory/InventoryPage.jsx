@@ -341,9 +341,9 @@ export default function InventoryPage() {
             </div>
           </div>
 
-          <div className="bg-white rounded-lg shadow overflow-hidden">
-            <table className="w-full text-sm">
-              <thead className="bg-gray-100 border-b">
+          <div className="bg-white rounded-lg shadow overflow-auto max-h-[calc(100vh-12rem)]">
+            <table className="w-full min-w-[900px] text-sm">
+              <thead className="sticky top-0 z-[1] bg-gray-100 border-b">
                 <tr>
                   <th className="px-3 py-3 text-left">Product</th>
                   <th className="px-3 py-3 text-left">Brand</th>
@@ -390,7 +390,7 @@ export default function InventoryPage() {
                 )}
               </tbody>
               {filteredProducts.length > 0 && (
-                <tfoot className="bg-gray-50 border-t-2 font-bold">
+                <tfoot className="sticky bottom-0 bg-gray-50 border-t-2 font-bold">
                   <tr>
                     <td className="px-3 py-3" colSpan="4" title="Each total is units in stock x that price">
                       Total ({filteredProducts.length} {filteredProducts.length === 1 ? "product" : "products"})
@@ -657,7 +657,8 @@ export default function InventoryPage() {
                 </thead>
                 <tbody>
                   {priceHistory.map(h => {
-                    const hasOld = h.old_cost_price != null
+                    const isFirst = !!h.is_first_purchase
+                    const hasOld = h.old_cost_price != null && !isFirst
                     const diff = hasOld ? h.new_cost_price - h.old_cost_price : 0
                     const pct = hasOld && h.old_cost_price !== 0 ? (diff / h.old_cost_price) * 100 : null
                     const increased = hasOld && diff > 0
@@ -668,7 +669,7 @@ export default function InventoryPage() {
                         <td className="py-3 px-3 text-gray-500">
                           {h.source === 'purchase' ? `Purchase${h.supplier_name ? ` (${h.supplier_name})` : ''}` : 'Manual edit'}
                           {h.source === 'purchase' && h.unit_cost != null && (
-                            <div className="text-xs text-gray-400 mt-0.5">bought at ₹{inr(h.unit_cost, 2)}/unit</div>
+                            <div className="text-xs text-gray-400 mt-0.5">{h.plain_unit_cost != null ? `unit cost ₹${inr(h.plain_unit_cost, 2)} · landed ₹${inr(h.unit_cost, 2)}/unit` : `landed ₹${inr(h.unit_cost, 2)}/unit`}</div>
                           )}
                         </td>
                         <td className="py-3 px-3 text-right whitespace-nowrap">{h.quantity ?? '-'}</td>
@@ -677,7 +678,7 @@ export default function InventoryPage() {
                         <td className={`py-3 px-3 text-right font-medium whitespace-nowrap ${increased ? 'text-red-600' : decreased ? 'text-green-600' : 'text-gray-400'}`}>
                           {hasOld
                             ? <>{increased ? '▲' : decreased ? '▼' : '—'} ₹{inr(Math.abs(diff), 2)}<div className="text-xs font-normal">{pct !== null ? `(${diff >= 0 ? '+' : '-'}${inr(Math.abs(pct), 1)}%)` : ''}</div></>
-                            : 'Initial'}
+                            : (isFirst ? 'First purchase' : 'Initial')}
                         </td>
                       </tr>
                     )

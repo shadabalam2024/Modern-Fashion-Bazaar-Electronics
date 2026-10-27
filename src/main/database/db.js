@@ -280,6 +280,7 @@ class ShopDatabase {
     addColumnIfMissing('products', 'is_custom', 'BOOLEAN DEFAULT 0');
     addColumnIfMissing('invoices', 'refunded_amount', 'REAL DEFAULT 0');
     addColumnIfMissing('return_items', 'disposition', 'TEXT');
+    addColumnIfMissing('cost_price_history', 'stock_before', 'INTEGER');
     addColumnIfMissing('customer_payments', 'payment_mode', "TEXT NOT NULL DEFAULT 'cash'");
     addColumnIfMissing('shop_settings', 'thermal_printing_enabled', 'BOOLEAN DEFAULT 0');
     addColumnIfMissing('shop_settings', 'thermal_printer_name', 'TEXT');

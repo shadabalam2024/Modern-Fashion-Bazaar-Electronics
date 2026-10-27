@@ -338,9 +338,9 @@ export default function ReturnsPage() {
               className="w-full px-4 py-2 border rounded"
             />
           </Field>
-          <div className="bg-white rounded-lg shadow overflow-hidden">
-            <table className="w-full">
-              <thead className="bg-gray-100 border-b">
+          <div className="bg-white rounded-lg shadow overflow-auto max-h-[calc(100vh-12rem)]">
+            <table className="w-full min-w-[800px]">
+              <thead className="sticky top-0 z-[1] bg-gray-100 border-b">
                 <tr>
                   <th className="px-6 py-3 text-left">Return #</th>
                   <th className="px-6 py-3 text-left">Bill #</th>
@@ -378,9 +378,9 @@ export default function ReturnsPage() {
               className="w-full px-4 py-2 border rounded"
             />
           </Field>
-          <div className="bg-white rounded-lg shadow overflow-hidden">
-            <table className="w-full">
-              <thead className="bg-gray-100 border-b">
+          <div className="bg-white rounded-lg shadow overflow-auto max-h-[calc(100vh-12rem)]">
+            <table className="w-full min-w-[800px]">
+              <thead className="sticky top-0 z-[1] bg-gray-100 border-b">
                 <tr>
                   <th className="px-6 py-3 text-left">Date</th>
                   <th className="px-6 py-3 text-left">Product</th>

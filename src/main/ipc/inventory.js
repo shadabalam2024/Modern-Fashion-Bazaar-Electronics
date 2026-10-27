@@ -165,7 +165,13 @@ module.exports = (ipcMain, db) => {
     if (denied) return denied;
     try {
       const history = db.prepare(`
-        SELECT cph.*, s.name as supplier_name
+        SELECT cph.*, s.name as supplier_name,
+          (SELECT pi.unit_cost FROM purchase_items pi
+            WHERE pi.purchase_id = cph.purchase_id AND pi.product_id = cph.product_id LIMIT 1) AS plain_unit_cost,
+          -- first purchase: nothing in stock before it (older rows without stock_before: no earlier purchase logged)
+          CASE WHEN cph.source = 'purchase' AND COALESCE(cph.stock_before = 0,
+            NOT EXISTS (SELECT 1 FROM cost_price_history e WHERE e.product_id = cph.product_id AND e.source = 'purchase' AND e.id < cph.id))
+            THEN 1 ELSE 0 END AS is_first_purchase
         FROM cost_price_history cph
         LEFT JOIN purchases p ON cph.purchase_id = p.id
         LEFT JOIN suppliers s ON p.supplier_id = s.id

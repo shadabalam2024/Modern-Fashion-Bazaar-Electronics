@@ -11,7 +11,7 @@ export default function Navbar() {
 
   return (
     <>
-      <nav className="bg-white shadow-md px-8 py-4 flex justify-between items-center">
+      <nav className="sticky top-0 z-10 bg-white shadow-md px-8 py-4 flex justify-between items-center">
         <div>
           <p className="text-sm text-gray-600">Logged in as</p>
           <p className="font-bold">{user?.username} ({user?.role})</p>

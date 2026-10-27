@@ -135,9 +135,9 @@ export default function CustomersPage() {
             />
           </Field>
 
-          <div className="bg-white rounded-lg shadow overflow-hidden">
-            <table className="w-full">
-              <thead className="bg-gray-100 border-b">
+          <div className="bg-white rounded-lg shadow overflow-auto max-h-[calc(100vh-12rem)]">
+            <table className="w-full min-w-[700px]">
+              <thead className="sticky top-0 z-[1] bg-gray-100 border-b">
                 <tr>
                   <th className="px-6 py-3 text-left">Name</th>
                   <th className="px-6 py-3 text-left">Phone</th>

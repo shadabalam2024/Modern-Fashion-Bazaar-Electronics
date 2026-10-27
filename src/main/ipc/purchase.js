@@ -126,8 +126,8 @@ module.exports = (ipcMain, db) => {
           UPDATE products SET mrp = COALESCE(?, mrp), selling_price = COALESCE(?, selling_price) WHERE id = ?
         `);
         const logCostChange = db.prepare(`
-          INSERT INTO cost_price_history (product_id, old_cost_price, new_cost_price, unit_cost, quantity, source, purchase_id)
-          VALUES (?, ?, ?, ?, ?, 'purchase', ?)
+          INSERT INTO cost_price_history (product_id, old_cost_price, new_cost_price, unit_cost, quantity, source, purchase_id, stock_before)
+          VALUES (?, ?, ?, ?, ?, 'purchase', ?, ?)
         `);
 
         for (const item of items) {
@@ -140,7 +140,7 @@ module.exports = (ipcMain, db) => {
             : product.cost_price;
           updateStockAndCost.run(newStock, newCost, item.product_id);
           updatePrices.run(item.mrp, item.selling_price, item.product_id);
-          logCostChange.run(item.product_id, product.cost_price, newCost, batchCost, item.quantity, purchaseId);
+          logCostChange.run(item.product_id, product.cost_price, newCost, batchCost, item.quantity, purchaseId, product.current_stock);
         }
 
         db.prepare("UPDATE purchases SET status = ?, received_at = datetime('now') WHERE id = ?").run('received', purchaseId);

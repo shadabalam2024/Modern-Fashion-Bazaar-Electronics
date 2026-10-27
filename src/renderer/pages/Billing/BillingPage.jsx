@@ -479,7 +479,7 @@ export default function BillingPage() {
                 </form>
               )}
 
-              <table className="w-full text-sm">
+              <div className="overflow-x-auto"><table className="w-full min-w-[640px] text-sm">
                 <thead>
                   <tr className="border-b text-left">
                     <th className="py-2">Product</th>
@@ -546,7 +546,7 @@ export default function BillingPage() {
                     </tr>
                   )}
                 </tbody>
-              </table>
+              </table></div>
             </div>
 
             <div className="bg-white rounded-lg shadow p-6 h-fit">
@@ -739,7 +739,7 @@ export default function BillingPage() {
             </div>
           </div>
 
-          <div className="bg-white rounded-lg shadow overflow-hidden mt-8">
+          <div className="bg-white rounded-lg shadow overflow-auto max-h-[calc(100vh-12rem)] mt-8">
             <div className="flex justify-between items-end p-6 pb-0">
               <div>
                 <h2 className="text-xl font-bold mb-2">Sales History</h2>
@@ -763,8 +763,8 @@ export default function BillingPage() {
                 />
               </div>
             </div>
-            <table className="w-full mt-4">
-              <thead className="bg-gray-100 border-b">
+            <table className="w-full min-w-[800px] mt-4">
+              <thead className="sticky top-0 z-[1] bg-gray-100 border-b">
                 <tr>
                   <th className="px-6 py-3 text-left">Bill #</th>
                   <th className="px-6 py-3 text-left">Customer</th>
