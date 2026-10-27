@@ -7,7 +7,7 @@ const money = (n) => `₹${Number(n || 0).toLocaleString('en-IN', { minimumFract
 function buildInventoryHtml({ shopName, filterLabel, products }) {
   const totals = products.reduce((t, p) => ({
     units: t.units + p.current_stock,
-    cost: t.cost + p.current_stock * p.cost_price,
+    cost: t.cost + p.current_stock * (p.last_unit_cost ?? p.cost_price),
     landed: t.landed + p.current_stock * (p.landed_cost ?? p.cost_price),
     sale: t.sale + p.current_stock * p.selling_price
   }), { units: 0, cost: 0, landed: 0, sale: 0 });
@@ -20,7 +20,7 @@ function buildInventoryHtml({ shopName, filterLabel, products }) {
       <td>${escapeHtml(p.sku)}</td>
       <td>${escapeHtml(p.category_name || '-')}</td>
       <td class="r">${p.current_stock}</td>
-      <td class="r">${money(p.cost_price)}</td>
+      <td class="r">${money(p.last_unit_cost ?? p.cost_price)}</td>
       <td class="r">${p.landed_cost != null ? money(p.landed_cost) : '-'}</td>
       <td class="r">${money(p.selling_price)}</td>
     </tr>`).join('');

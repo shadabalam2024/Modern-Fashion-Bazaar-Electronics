@@ -229,6 +229,10 @@ app.on('ready', async () => {
       if (ids.length === 0) return { success: false, message: 'Nothing to print' };
       const byId = new Map(db.prepare(`
         SELECT p.*, c.name AS category_name,
+          (SELECT pi.unit_cost FROM purchase_items pi
+             JOIN purchases pu ON pu.id = pi.purchase_id
+            WHERE pi.product_id = p.id AND pu.status = 'received'
+            ORDER BY pu.id DESC, pi.id DESC LIMIT 1) AS last_unit_cost,
           (SELECT pi.landed_unit_cost FROM purchase_items pi
              JOIN purchases pu ON pu.id = pi.purchase_id
             WHERE pi.product_id = p.id AND pu.status = 'received' AND pi.landed_unit_cost IS NOT NULL

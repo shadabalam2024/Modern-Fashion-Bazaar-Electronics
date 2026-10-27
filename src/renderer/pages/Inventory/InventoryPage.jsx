@@ -246,9 +246,12 @@ export default function InventoryPage() {
 
   // Worth of the stock shown in the list: units x cost / landed cost / selling price.
   // A product never bought through Purchase has no landed cost yet, so its cost price stands in.
+  // "Cost" in this list is the supplier's plain unit price from the latest received purchase (what the
+  // Purchase screen calls Unit Cost); products never bought through Purchase show their own cost price.
+  const unitCostOf = (p) => p.last_unit_cost ?? p.cost_price
   const totals = filteredProducts.reduce((t, p) => ({
     units: t.units + p.current_stock,
-    cost: t.cost + p.current_stock * p.cost_price,
+    cost: t.cost + p.current_stock * unitCostOf(p),
     landed: t.landed + p.current_stock * (p.landed_cost ?? p.cost_price),
     price: t.price + p.current_stock * p.selling_price
   }), { units: 0, cost: 0, landed: 0, price: 0 })
@@ -347,7 +350,7 @@ export default function InventoryPage() {
                   <th className="px-3 py-3 text-left">SKU</th>
                   <th className="px-3 py-3 text-left">Category</th>
                   <th className="px-3 py-3 text-right">Stock</th>
-                  <th className="px-3 py-3 text-right">Cost</th>
+                  <th className="px-3 py-3 text-right" title="Supplier price per unit from the latest received purchase (Unit Cost in Purchase)">Cost</th>
                   <th className="px-3 py-3 text-right" title="Landed cost (cost + GST + transport, less discount) of the latest received purchase">Landed</th>
                   <th className="px-3 py-3 text-right">Price</th>
                   <th className="px-3 py-3 text-right">Actions</th>
@@ -365,7 +368,7 @@ export default function InventoryPage() {
                     </td>
                     <td className="px-3 py-3 text-right">
                       <button onClick={() => openPriceHistory(p)} className="text-blue-600 hover:underline">
-                        ₹{inr(p.cost_price)}
+                        ₹{inr(unitCostOf(p), 2)}
                       </button>
                     </td>
                     <td className="px-3 py-3 text-right text-gray-600">
