@@ -7,6 +7,57 @@ const { nextBarcodes } = require('../barcodes');
 const TEMPLATE_HEADERS = ['Barcode', 'Product Name', 'Quantity', 'Cost', 'MRP', 'Selling Price'];
 
 module.exports = (ipcMain, db) => {
+  // A received purchase has already put its goods into stock and blended their cost into the product.
+  // To edit or delete it, take the old lines back out of stock and cost and (for an edit) put the new
+  // lines in. Stock moves by the difference; cost is the weighted average re-worked with the batch swapped.
+  function adjustReceivedStock(purchaseId, oldItems, newItems) {
+    const sum = (items) => {
+      const m = new Map();
+      for (const i of items) {
+        const cur = m.get(i.product_id) || { qty: 0, value: 0, last: null };
+        cur.qty += i.quantity;
+        cur.value += i.quantity * (i.landed_unit_cost ?? i.unit_cost);
+        cur.last = i;
+        m.set(i.product_id, cur);
+      }
+      return m;
+    };
+    const before = sum(oldItems);
+    const after = sum(newItems);
+    const getProduct = db.prepare('SELECT name, current_stock, cost_price FROM products WHERE id = ?');
+    const update = db.prepare('UPDATE products SET current_stock = ?, cost_price = ? WHERE id = ?');
+    const setPrices = db.prepare('UPDATE products SET mrp = COALESCE(?, mrp), selling_price = COALESCE(?, selling_price) WHERE id = ?');
+    const log = db.prepare(`
+      INSERT INTO cost_price_history (product_id, old_cost_price, new_cost_price, unit_cost, quantity, source, purchase_id, stock_before)
+      VALUES (?, ?, ?, ?, ?, 'purchase', ?, ?)
+    `);
+    // the old receive entries are replaced by the new ones
+    db.prepare("DELETE FROM cost_price_history WHERE purchase_id = ? AND source = 'purchase'").run(purchaseId);
+
+    for (const productId of new Set([...before.keys(), ...after.keys()])) {
+      const product = getProduct.get(productId);
+      if (!product) continue;
+      const b = before.get(productId) || { qty: 0, value: 0 };
+      const a = after.get(productId) || { qty: 0, value: 0 };
+      const newStock = product.current_stock - b.qty + a.qty;
+      if (newStock < 0) {
+        throw new Error(`Not enough stock of "${product.name}" to change this purchase - ${b.qty - a.qty} of the units have already been sold (${product.current_stock} in stock)`);
+      }
+      const value = product.current_stock * product.cost_price - b.value + a.value;
+      const newCost = newStock > 0 ? Math.max(0, value / newStock) : product.cost_price;
+      update.run(newStock, newCost, productId);
+      if (a.qty > 0) {
+        setPrices.run(a.last.mrp ?? null, a.last.selling_price ?? null, productId);
+        log.run(productId, product.cost_price, newCost, a.value / a.qty, a.qty, purchaseId, product.current_stock - b.qty);
+      }
+    }
+  }
+
+  const assertNoSupplierReturns = (purchaseId) => {
+    const n = db.prepare('SELECT COUNT(*) AS n FROM purchase_returns WHERE purchase_id = ?').get(purchaseId).n;
+    if (n > 0) throw new Error('This purchase has goods returned to the supplier, so it can no longer be changed');
+  };
+
   // Validates the payload, recomputes every figure from it (the renderer's numbers are only a
   // preview) and writes the purchase header + lines. Used for both create and edit.
   function savePurchase({ purchaseId, supplierId, userId, supplierBillNo, supplierGstin, billDate, discount, gstRate, gstInCost, transportCost, items }) {
@@ -28,6 +79,8 @@ module.exports = (ipcMain, db) => {
           .run(String(supplierGstin).trim().toUpperCase() || null, supplierId);
       }
       let id = purchaseId;
+      let wasReceived = false;
+      let oldItems = [];
       const header = [
         supplierId, totals.grandTotal, totals.transport, supplierBillNo || null, billDate || null,
         totals.discount, Number(gstRate) || 0, totals.gstAmount, gstInCost ? 1 : 0, totals.roundOff
@@ -35,7 +88,9 @@ module.exports = (ipcMain, db) => {
       if (id) {
         const existing = db.prepare('SELECT status FROM purchases WHERE id = ?').get(id);
         if (!existing) throw new Error('Purchase not found');
-        if (existing.status === 'received') throw new Error('A received purchase cannot be edited');
+        if (existing.status === 'received') assertNoSupplierReturns(id);
+        wasReceived = existing.status === 'received';
+        if (wasReceived) oldItems = db.prepare('SELECT * FROM purchase_items WHERE purchase_id = ?').all(id);
         db.prepare(`
           UPDATE purchases SET supplier_id = ?, total_amount = ?, transport_cost = ?, supplier_bill_no = ?, bill_date = ?,
             discount_amount = ?, gst_rate = ?, gst_amount = ?, gst_in_cost = ?, round_off = ?
@@ -63,6 +118,9 @@ module.exports = (ipcMain, db) => {
           item.selling_price === '' || item.selling_price == null ? null : Number(item.selling_price)
         );
       });
+      if (wasReceived) {
+        adjustReceivedStock(id, oldItems, db.prepare('SELECT * FROM purchase_items WHERE purchase_id = ?').all(id));
+      }
       return id;
     })();
   }
@@ -87,7 +145,7 @@ module.exports = (ipcMain, db) => {
     }
   });
 
-  // Only a purchase that hasn't been received yet can be removed
+  // Delete a purchase. If it was already received, its goods come back out of stock (and cost) first.
   ipcMain.handle('delete-purchase', (event, purchaseId) => {
     const denied = checkPermission(event, 'purchase');
     if (denied) return denied;
@@ -95,7 +153,11 @@ module.exports = (ipcMain, db) => {
       db.transaction(() => {
         const purchase = db.prepare('SELECT status FROM purchases WHERE id = ?').get(purchaseId);
         if (!purchase) throw new Error('Purchase not found');
-        if (purchase.status === 'received') throw new Error('A received purchase cannot be deleted - use Return to Supplier instead');
+        if (purchase.status === 'received') {
+          assertNoSupplierReturns(purchaseId);
+          adjustReceivedStock(purchaseId, db.prepare('SELECT * FROM purchase_items WHERE purchase_id = ?').all(purchaseId), []);
+        }
+        db.prepare("DELETE FROM cost_price_history WHERE purchase_id = ?").run(purchaseId);
         db.prepare('DELETE FROM purchase_items WHERE purchase_id = ?').run(purchaseId);
         db.prepare('DELETE FROM purchases WHERE id = ?').run(purchaseId);
       })();

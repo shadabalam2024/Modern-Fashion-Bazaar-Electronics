@@ -2,6 +2,7 @@ import { useState, useEffect, useRef } from 'react'
 import Navbar from '../../components/Navbar'
 import Sidebar from '../../components/Sidebar'
 import { inr } from '../../utils/money'
+import { COMMON_ITEMS, COMMON_COLORS, COMMON_SIZES, mergeSuggestions } from '../../utils/suggestions'
 
 const emptyForm = {
   name: '', sku: '', barcode: '', category_id: '',
@@ -231,6 +232,9 @@ export default function InventoryPage() {
   // the choices in the two filters come from the products themselves
   const brandOptions = [...new Set(products.map(p => (p.brand || '').trim()).filter(Boolean))].sort((a, b) => a.localeCompare(b))
   const itemOptions = [...new Set(products.map(p => (p.item_name || '').trim()).filter(Boolean))].sort((a, b) => a.localeCompare(b))
+  const itemSuggestions = mergeSuggestions([...itemOptions, ...categories.map(c => c.name)], COMMON_ITEMS)
+  const sizeOptions = [...new Set(products.map(p => (p.size || '').trim()).filter(Boolean))]
+  const colorOptions = [...new Set(products.map(p => (p.color || '').trim()).filter(Boolean))].sort((a, b) => a.localeCompare(b))
   const categoryOptions = [...new Set(products.map(p => p.category_name).filter(Boolean))].sort((a, b) => a.localeCompare(b))
 
   const filteredProducts = products
@@ -428,6 +432,10 @@ export default function InventoryPage() {
           <div className="bg-white rounded-lg shadow-lg p-6 w-full max-w-md max-h-[90vh] overflow-y-auto">
             <h2 className="text-xl font-bold mb-4">{editingId ? 'Edit Product' : 'Add Product'}</h2>
             <form onSubmit={handleSubmit}>
+              <datalist id="inv-items">{itemSuggestions.map(v => <option key={v} value={v} />)}</datalist>
+              <datalist id="inv-brands">{brandOptions.map(v => <option key={v} value={v} />)}</datalist>
+              <datalist id="inv-sizes">{mergeSuggestions(sizeOptions, COMMON_SIZES).map(v => <option key={v} value={v} />)}</datalist>
+              <datalist id="inv-colors">{mergeSuggestions(colorOptions, COMMON_COLORS).map(v => <option key={v} value={v} />)}</datalist>
               <label className="block text-xs text-gray-500 mb-1">Product Name</label>
               <input
                 type="text" placeholder="Product Name" required
@@ -436,7 +444,7 @@ export default function InventoryPage() {
               />
               <label className="block text-xs text-gray-500 mb-1">Item Name (optional)</label>
               <input
-                type="text" placeholder="e.g. Fridge, Iron - the kind of item"
+                type="text" list="inv-items" placeholder="e.g. Fridge, Iron - the kind of item"
                 value={form.item_name} onChange={(e) => setForm({ ...form, item_name: e.target.value })}
                 className="w-full px-4 py-2 border rounded mb-3"
               />
@@ -560,21 +568,21 @@ export default function InventoryPage() {
                 <div>
                   <label className="block text-xs text-gray-500 mb-1">Brand</label>
                   <input
-                    type="text" value={form.brand} onChange={(e) => setForm({ ...form, brand: e.target.value })}
+                    type="text" list="inv-brands" value={form.brand} onChange={(e) => setForm({ ...form, brand: e.target.value })}
                     className="w-full px-4 py-2 border rounded"
                   />
                 </div>
                 <div>
                   <label className="block text-xs text-gray-500 mb-1">Size</label>
                   <input
-                    type="text" value={form.size} onChange={(e) => setForm({ ...form, size: e.target.value })}
+                    type="text" list="inv-sizes" value={form.size} onChange={(e) => setForm({ ...form, size: e.target.value })}
                     className="w-full px-4 py-2 border rounded"
                   />
                 </div>
                 <div>
                   <label className="block text-xs text-gray-500 mb-1">Colour</label>
                   <input
-                    type="text" value={form.color} onChange={(e) => setForm({ ...form, color: e.target.value })}
+                    type="text" list="inv-colors" value={form.color} onChange={(e) => setForm({ ...form, color: e.target.value })}
                     className="w-full px-4 py-2 border rounded"
                   />
                 </div>

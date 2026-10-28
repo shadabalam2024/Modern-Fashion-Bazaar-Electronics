@@ -14,6 +14,8 @@ const todayStr = () => {
 }
 // 2 digits state code + 10-character PAN + entity digit + Z + check character
 const GSTIN_PATTERN = /^\d{2}[A-Z]{5}\d{4}[A-Z][A-Z\d]Z[A-Z\d]$/
+import { COMMON_ITEMS, COMMON_COLORS, COMMON_SIZES, mergeSuggestions, labelCase } from '../../utils/suggestions'
+const DEFAULT_GST_RATE = '18' // a new purchase starts at 18% GST; it can still be changed or cleared
 const money = (n) => `₹${inr(Number(n || 0), 2)}`
 const emptyNewProduct = {
   name: '', sku: '', barcode: '', category_id: '', cost_price: '', selling_price: '',
@@ -34,16 +36,18 @@ export default function PurchasePage() {
 
   const [suppliers, setSuppliers] = useState([])
   const [purchases, setPurchases] = useState([])
+  const [knownProducts, setKnownProducts] = useState([]) // for typing suggestions in the new-product form
   const [supplierId, setSupplierId] = useState('')
   const [supplierBillNo, setSupplierBillNo] = useState('')
   const [supplierGstin, setSupplierGstin] = useState('')
   const [billDate, setBillDate] = useState(todayStr())
   const [items, setItems] = useState([])
   const [discount, setDiscount] = useState('')
-  const [gstRate, setGstRate] = useState('')
+  const [gstRate, setGstRate] = useState(DEFAULT_GST_RATE)
   const [gstInCost, setGstInCost] = useState(true)
   const [transportCost, setTransportCost] = useState('')
   const [editingId, setEditingId] = useState(null)
+  const [editingReceived, setEditingReceived] = useState(false) // editing a purchase whose goods are already in stock
   const [searchTerm, setSearchTerm] = useState('')
   const [searchResults, setSearchResults] = useState([])
   const [showSupplierForm, setShowSupplierForm] = useState(false)
@@ -78,8 +82,19 @@ export default function PurchasePage() {
   useEffect(() => {
     if (showNewProductForm) {
       newProductBarcodeRef.current?.focus()
+      window.ipcRenderer.invoke('get-products').then(list => Array.isArray(list) && setKnownProducts(list))
     }
   }, [showNewProductForm])
+
+  // Suggestions come from what is already in Inventory
+  const distinct = (key) => [...new Set(knownProducts.map(p => (p[key] || '').trim()).filter(Boolean))].sort((a, b) => a.localeCompare(b))
+  const itemSuggestions = mergeSuggestions([...distinct('item_name'), ...categories.map(c => c.name)], COMMON_ITEMS)
+  const brandSuggestions = distinct('brand')
+  const colorSuggestions = mergeSuggestions(distinct('color'), COMMON_COLORS)
+  // Sizes are comma separated: suggest the next size after what has been typed so far ("S, M, " -> "S, M, L")
+  const sizePrefix = newProductForm.sizes.includes(',') ? newProductForm.sizes.slice(0, newProductForm.sizes.lastIndexOf(',') + 1) + ' ' : ''
+  const typedSizes = newProductForm.sizes.split(',').map(x => x.trim().toLowerCase())
+  const sizeSuggestions = mergeSuggestions(distinct('size'), COMMON_SIZES).filter(x => !typedSizes.includes(x.toLowerCase())).map(x => sizePrefix + x)
 
   const handleBarcodeFieldKeyDown = (e) => {
     // Scanners send Enter after typing the code - don't let that submit the whole form
@@ -215,20 +230,26 @@ export default function PurchasePage() {
   const handleAddNewProduct = async (e) => {
     e.preventDefault()
     setError('')
-    const f = newProductForm
+    // one spelling per word: "samsung" and "Samsung" are saved as the same brand / item / colour / size
+    const f = {
+      ...newProductForm,
+      item_name: labelCase(newProductForm.item_name, distinct('item_name')),
+      brand: labelCase(newProductForm.brand, distinct('brand')),
+      color: labelCase(newProductForm.color, distinct('color'))
+    }
 
     if (!f.name.trim() || !f.cost_price || !f.selling_price) {
       setError('Name, cost price, and selling price are required for a new product')
       return
     }
-    const sizes = f.sizes.split(',').map(s => s.trim()).filter(Boolean)
+    const sizes = [...new Set(f.sizes.split(',').map(x => labelCase(x, distinct('size'), true)).filter(Boolean))]
     const common = {
       category_id: f.category_id || null,
       cost_price: parseFloat(f.cost_price),
       selling_price: parseFloat(f.selling_price),
       mrp: f.mrp === '' ? null : parseFloat(f.mrp),
       brand: f.brand, hsn_code: f.hsn_code, min_stock_level: 5,
-      item_name: f.item_name.trim()
+      item_name: f.item_name
     }
     // Shown name: Product - Item (variants add colour and size after this)
     const fullName = [f.name.trim(), f.item_name.trim()].filter(Boolean).join(' - ')
@@ -325,13 +346,14 @@ export default function PurchasePage() {
   }
 
   const clearForm = () => {
+    setEditingReceived(false)
     setItems([])
     setSupplierId('')
     setSupplierBillNo('')
     setSupplierGstin('')
     setBillDate(todayStr())
     setDiscount('')
-    setGstRate('')
+    setGstRate(DEFAULT_GST_RATE)
     setGstInCost(true)
     setTransportCost('')
     setEditingId(null)
@@ -376,6 +398,7 @@ export default function PurchasePage() {
       })),
       userId: user?.id
     }
+    if (editingReceived && !confirm('This purchase is already received. Saving will change the stock and cost in Inventory to match. Continue?')) return
     const result = await window.ipcRenderer.invoke(editingId ? 'update-purchase' : 'create-purchase', payload)
 
     if (result.success) {
@@ -401,6 +424,7 @@ export default function PurchasePage() {
     const p = await window.ipcRenderer.invoke('get-purchase', purchaseId)
     if (!p) return
     setEditingId(p.id)
+    setEditingReceived(p.status === 'received')
     setSupplierId(String(p.supplier_id))
     setSupplierBillNo(p.supplier_bill_no || '')
     setSupplierGstin(suppliers.find(x => x.id === p.supplier_id)?.gstin || '')
@@ -420,10 +444,12 @@ export default function PurchasePage() {
   }
 
   const handleDeletePurchase = async (p) => {
-    if (!confirm(`Delete purchase #${p.id} from ${p.supplier_name}? This cannot be undone.`)) return
+    const warning = p.status === 'received' ? ' Its goods will be taken back out of Inventory stock.' : ''
+    if (!confirm(`Delete purchase #${p.id} from ${p.supplier_name}?${warning} This cannot be undone.`)) return
     const result = await window.ipcRenderer.invoke('delete-purchase', p.id)
     if (result.success) {
       if (editingId === p.id) clearForm()
+      if (viewingPurchase?.id === p.id) setViewingPurchase(null)
       loadPurchases()
     } else {
       alert(result.message || 'Failed to delete purchase')
@@ -527,7 +553,9 @@ export default function PurchasePage() {
               </div>
               {editingId && (
                 <div className="bg-yellow-50 border border-yellow-300 text-yellow-800 text-sm rounded px-3 py-2 mb-4 flex justify-between">
-                  <span>You are editing a pending purchase. Saving replaces its items and amounts.</span>
+                  <span>{editingReceived
+                    ? 'You are editing a received purchase. Saving replaces its items and amounts and updates the stock and cost in Inventory to match.'
+                    : 'You are editing a pending purchase. Saving replaces its items and amounts.'}</span>
                   <button type="button" onClick={clearForm} className="underline">Cancel edit</button>
                 </div>
               )}
@@ -665,13 +693,17 @@ export default function PurchasePage() {
                       onChange={(e) => setNewProductForm({ ...newProductForm, name: e.target.value })}
                       className="w-full px-3 py-2 border rounded" />
                   </Field>
+                  <datalist id="pp-items">{itemSuggestions.map(v => <option key={v} value={v} />)}</datalist>
+                  <datalist id="pp-sizes">{sizeSuggestions.map(v => <option key={v} value={v} />)}</datalist>
+                  <datalist id="pp-colors">{colorSuggestions.map(v => <option key={v} value={v} />)}</datalist>
+                  <datalist id="pp-brands">{brandSuggestions.map(v => <option key={v} value={v} />)}</datalist>
                   <Field label="Item Name (optional)" className="col-span-2">
-                    <input placeholder="e.g. Fridge, Iron - the kind of item (added to the name after Product Name)" value={newProductForm.item_name}
+                    <input list="pp-items" placeholder="e.g. Fridge, Iron - the kind of item (added to the name after Product Name)" value={newProductForm.item_name}
                       onChange={(e) => setNewProductForm({ ...newProductForm, item_name: e.target.value })}
                       className="w-full px-3 py-2 border rounded" />
                   </Field>
                   <Field label="Sizes (optional, comma separated)" className="col-span-2">
-                    <input placeholder="e.g. S, M, L, XL  or  28, 30, 32 - makes one product per size" value={newProductForm.sizes}
+                    <input list="pp-sizes" placeholder="e.g. S, M, L, XL  or  28, 30, 32 - makes one product per size" value={newProductForm.sizes}
                       onChange={(e) => setNewProductForm({ ...newProductForm, sizes: e.target.value })}
                       className="w-full px-3 py-2 border rounded" />
                     {newProductForm.sizes.trim() && (
@@ -679,12 +711,12 @@ export default function PurchasePage() {
                     )}
                   </Field>
                   <Field label="Colour (optional)">
-                    <input placeholder="e.g. Blue" value={newProductForm.color}
+                    <input list="pp-colors" placeholder="e.g. Blue" value={newProductForm.color}
                       onChange={(e) => setNewProductForm({ ...newProductForm, color: e.target.value })}
                       className="w-full px-3 py-2 border rounded" />
                   </Field>
                   <Field label="Brand (optional)">
-                    <input placeholder="Brand" value={newProductForm.brand}
+                    <input list="pp-brands" placeholder="Brand" value={newProductForm.brand}
                       onChange={(e) => setNewProductForm({ ...newProductForm, brand: e.target.value })}
                       className="w-full px-3 py-2 border rounded" />
                   </Field>
@@ -955,13 +987,11 @@ export default function PurchasePage() {
                     <td className="px-6 py-4 text-right space-x-3 whitespace-nowrap">
                       <button onClick={() => openPurchaseDetail(p.id)} className="text-blue-600 hover:underline">View</button>
                       <button onClick={() => handlePrintPurchase(p.id)} className="text-blue-600 hover:underline">Print</button>
+                      <button onClick={() => handleEdit(p.id)} className="text-blue-600 hover:underline">Edit</button>
                       {p.status !== 'received' && (
-                        <>
-                          <button onClick={() => handleEdit(p.id)} className="text-blue-600 hover:underline">Edit</button>
-                          <button onClick={() => handleReceive(p.id)} className="text-blue-600 hover:underline">Receive</button>
-                          <button onClick={() => handleDeletePurchase(p)} className="text-red-600 hover:underline">Delete</button>
-                        </>
+                        <button onClick={() => handleReceive(p.id)} className="text-blue-600 hover:underline">Receive</button>
                       )}
+                      <button onClick={() => handleDeletePurchase(p)} className="text-red-600 hover:underline">Delete</button>
                     </td>
                   </tr>
                 ))}
@@ -1075,12 +1105,11 @@ export default function PurchasePage() {
             <div className="flex flex-wrap gap-3 mt-5 pt-4 border-t">
               <button onClick={() => handlePrintPurchase(viewingPurchase.id)} className="border px-4 py-2 rounded hover:bg-gray-50 text-sm">Print</button>
               <button onClick={() => handlePrintLabels(viewingPurchase)} className="border px-4 py-2 rounded hover:bg-gray-50 text-sm">Print Barcode Labels</button>
+              <button onClick={() => handleEdit(viewingPurchase.id)} className="border px-4 py-2 rounded hover:bg-gray-50 text-sm">Edit</button>
               {viewingPurchase.status !== 'received' && (
-                <>
-                  <button onClick={() => handleEdit(viewingPurchase.id)} className="border px-4 py-2 rounded hover:bg-gray-50 text-sm">Edit</button>
-                  <button onClick={() => handleReceive(viewingPurchase.id)} className="bg-blue-600 text-white px-4 py-2 rounded hover:bg-blue-700 text-sm">Receive</button>
-                </>
+                <button onClick={() => handleReceive(viewingPurchase.id)} className="bg-blue-600 text-white px-4 py-2 rounded hover:bg-blue-700 text-sm">Receive</button>
               )}
+              <button onClick={() => handleDeletePurchase(viewingPurchase)} className="border border-red-300 text-red-600 px-4 py-2 rounded hover:bg-red-50 text-sm">Delete</button>
               {viewingPurchase.status === 'received' && viewingPurchase.items.some(i => i.quantity - (i.returned_qty || 0) > 0) && (
                 <button onClick={() => openReturn(viewingPurchase)} className="border border-red-300 text-red-600 px-4 py-2 rounded hover:bg-red-50 text-sm">Return to Supplier</button>
               )}
