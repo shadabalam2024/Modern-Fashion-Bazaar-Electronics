@@ -29,6 +29,8 @@ export default function InventoryPage() {
   const [exportMessage, setExportMessage] = useState('')
   const [exportError, setExportError] = useState(false)
   const [viewingHistoryFor, setViewingHistoryFor] = useState(null)
+  const [itemHistory, setItemHistory] = useState(null) // { product, rows, summary } or { product, error }
+  const [historyFilter, setHistoryFilter] = useState('all') // all | purchases | sales
   const [priceHistory, setPriceHistory] = useState(null)
   const [labelTarget, setLabelTarget] = useState(null) // { title, products: [...], count }
   const [labelMessage, setLabelMessage] = useState('')
@@ -103,6 +105,13 @@ export default function InventoryPage() {
   const generateBarcode = async () => {
     const result = await window.ipcRenderer.invoke('get-next-barcodes', { count: 1 })
     if (result.success) setForm(f => ({ ...f, barcode: result.barcodes[0] }))
+  }
+
+  const openItemHistory = async (product) => {
+    setHistoryFilter('all')
+    setItemHistory({ product, rows: [], summary: { bought_qty: 0, bought_total: 0, sold_qty: 0, sold_total: 0, profit: 0, stock: product.current_stock, cost_price: 0, selling_price: 0 } })
+    const result = await window.ipcRenderer.invoke('get-item-history', product.id)
+    setItemHistory(result.success ? { product, rows: result.rows, summary: result.summary } : { product, error: result.message || 'Could not load the history' })
   }
 
   const openPriceHistory = async (product) => {
@@ -390,6 +399,7 @@ export default function InventoryPage() {
                     </td>
                     <td className="px-3 py-3 text-right">₹{inr(p.selling_price)}</td>
                     <td className="px-3 py-3 text-right space-x-2 whitespace-nowrap">
+                      <button onClick={() => openItemHistory(p)} className="text-blue-600 hover:underline">History</button>
                       <button onClick={() => openLabels(p.name, [p])} className="text-blue-600 hover:underline">Labels</button>
                       <button onClick={() => openAdjustStock(p)} className="text-blue-600 hover:underline">Stock</button>
                       <button onClick={() => openEditForm(p)} className="text-blue-600 hover:underline">Edit</button>
@@ -648,6 +658,96 @@ export default function InventoryPage() {
                 </button>
               </div>
             </form>
+          </div>
+        </div>
+      )}
+
+      {itemHistory && (
+        <div className="fixed inset-0 bg-black bg-opacity-40 flex items-center justify-center z-20">
+          <div className="bg-white rounded-lg shadow-lg p-6 w-full max-w-6xl max-h-[88vh] overflow-y-auto">
+            <div className="flex justify-between items-start mb-4">
+              <div>
+                <h2 className="text-xl font-bold">Item History</h2>
+                <p className="text-sm text-gray-500">{itemHistory.product.name}</p>
+              </div>
+              <button onClick={() => setItemHistory(null)} className="text-gray-400 hover:text-gray-700">✕</button>
+            </div>
+            {itemHistory.error ? <p className="text-red-600">{itemHistory.error}</p> : (() => {
+              const s = itemHistory.summary
+              const typeLabel = { purchase: 'Purchase', supplier_return: 'Returned to supplier', sale: 'Sale', sale_return: 'Customer return' }
+              const rows = itemHistory.rows.filter(r => historyFilter === 'all'
+                || (historyFilter === 'purchases' && (r.type === 'purchase' || r.type === 'supplier_return'))
+                || (historyFilter === 'sales' && (r.type === 'sale' || r.type === 'sale_return')))
+              const cards = [
+                ['Units bought', inr(s.bought_qty)],
+                ['Total purchase cost', `₹${inr(s.bought_total, 2)}`],
+                ['Units sold', inr(s.sold_qty)],
+                ['Total sales', `₹${inr(s.sold_total, 2)}`],
+                ['Profit earned', `₹${inr(s.profit, 2)}`, s.profit < 0 ? 'text-red-600' : 'text-green-700'],
+                ['In stock now', inr(s.stock)]
+              ]
+              return (
+                <>
+                  <div className="grid grid-cols-2 md:grid-cols-6 gap-3 mb-3">
+                    {cards.map(([label, value, color]) => (
+                      <div key={label} className="border rounded p-3 bg-gray-50">
+                        <div className="text-xs text-gray-500">{label}</div>
+                        <div className={`text-lg font-bold ${color || ''}`}>{value}</div>
+                      </div>
+                    ))}
+                  </div>
+                  <p className="text-xs text-gray-400 mb-3">
+                    Current cost ₹{inr(s.cost_price, 2)} (average landed cost) · current selling price ₹{inr(s.selling_price, 2)}. Profit = sale amount less units x current cost.
+                  </p>
+                  <div className="flex rounded border overflow-hidden text-sm w-fit mb-3">
+                    {[['all', 'All'], ['purchases', 'Purchases'], ['sales', 'Sales']].map(([key, label]) => (
+                      <button key={key} onClick={() => setHistoryFilter(key)}
+                        className={`px-4 py-1.5 ${historyFilter === key ? 'bg-blue-600 text-white' : 'bg-white hover:bg-gray-50'}`}>{label}</button>
+                    ))}
+                  </div>
+                  {rows.length === 0 ? <p className="text-gray-400 py-6 text-center">Nothing recorded yet</p> : (
+                    <div className="overflow-x-auto">
+                      <table className="w-full min-w-[900px] text-sm border-collapse">
+                        <thead>
+                          <tr className="border-b text-left">
+                            <th className="py-2 px-2">Date</th>
+                            <th className="py-2 px-2">Type</th>
+                            <th className="py-2 px-2">Supplier / Customer</th>
+                            <th className="py-2 px-2">Ref</th>
+                            <th className="py-2 px-2 text-right">Qty</th>
+                            <th className="py-2 px-2 text-right" title="Supplier price per unit">Cost</th>
+                            <th className="py-2 px-2 text-right" title="Cost + GST + transport per unit">Landed</th>
+                            <th className="py-2 px-2 text-right">Sold at</th>
+                            <th className="py-2 px-2 text-right">Total</th>
+                            <th className="py-2 px-2 text-right">Profit</th>
+                          </tr>
+                        </thead>
+                        <tbody>
+                          {rows.map((r, i) => (
+                            <tr key={i} className="border-b">
+                              <td className="py-2 px-2 whitespace-nowrap">{new Date(r.date).toLocaleDateString()}</td>
+                              <td className="py-2 px-2 whitespace-nowrap">
+                                <span className={`px-2 py-0.5 rounded text-xs ${r.type === 'purchase' ? 'bg-blue-100 text-blue-700' : r.type === 'sale' ? 'bg-green-100 text-green-700' : 'bg-orange-100 text-orange-700'}`}>{typeLabel[r.type]}</span>
+                              </td>
+                              <td className="py-2 px-2">{r.party}</td>
+                              <td className="py-2 px-2 text-gray-500 whitespace-nowrap">{r.ref}</td>
+                              <td className="py-2 px-2 text-right">{r.qty}</td>
+                              <td className="py-2 px-2 text-right">{r.unit_cost != null ? `₹${inr(r.unit_cost, 2)}` : '—'}</td>
+                              <td className="py-2 px-2 text-right">{r.landed_cost != null ? `₹${inr(r.landed_cost, 2)}` : '—'}</td>
+                              <td className="py-2 px-2 text-right">{r.type === 'sale' || r.type === 'sale_return' ? `₹${inr(r.price, 2)}` : '—'}</td>
+                              <td className="py-2 px-2 text-right">₹{inr(r.total, 2)}</td>
+                              <td className={`py-2 px-2 text-right font-medium ${r.profit == null ? 'text-gray-400' : r.profit < 0 ? 'text-red-600' : 'text-green-700'}`}>
+                                {r.profit == null ? '—' : `₹${inr(r.profit, 2)}`}
+                              </td>
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
+                    </div>
+                  )}
+                </>
+              )
+            })()}
           </div>
         </div>
       )}

@@ -196,6 +196,79 @@ module.exports = (ipcMain, db) => {
     }
   });
 
+  // Everything that has happened to one item: purchases, supplier returns, sales and customer returns,
+  // newest first, with totals. Profit uses the item's current cost (average landed cost), as the reports do.
+  ipcMain.handle('get-item-history', (event, productId) => {
+    const denied = checkPermission(event, 'inventory');
+    if (denied) return denied;
+    try {
+      const product = db.prepare('SELECT id, name, current_stock, cost_price, selling_price FROM products WHERE id = ?').get(productId);
+      if (!product) return { success: false, message: 'Product not found' };
+      const cost = product.cost_price || 0;
+
+      const purchases = db.prepare(`
+        SELECT 'purchase' AS type, COALESCE(pu.received_at, pu.purchase_date) AS date, 'Purchase #' || pu.id AS ref,
+               s.name AS party, pi.quantity AS qty, pi.unit_cost AS unit_cost,
+               COALESCE(pi.landed_unit_cost, pi.unit_cost) AS landed_cost, pi.selling_price AS price
+        FROM purchase_items pi
+        JOIN purchases pu ON pu.id = pi.purchase_id
+        JOIN suppliers s ON s.id = pu.supplier_id
+        WHERE pi.product_id = ? AND pu.status = 'received'
+      `).all(productId);
+
+      const supplierReturns = db.prepare(`
+        SELECT 'supplier_return' AS type, pr.return_date AS date, 'Purchase #' || pr.purchase_id AS ref,
+               s.name AS party, -pri.quantity AS qty, pi.unit_cost AS unit_cost, pri.unit_cost AS landed_cost, NULL AS price
+        FROM purchase_return_items pri
+        JOIN purchase_returns pr ON pr.id = pri.return_id
+        JOIN purchase_items pi ON pi.id = pri.purchase_item_id
+        JOIN purchases pu ON pu.id = pr.purchase_id
+        JOIN suppliers s ON s.id = pu.supplier_id
+        WHERE pri.product_id = ?
+      `).all(productId);
+
+      const sales = db.prepare(`
+        SELECT 'sale' AS type, i.invoice_date AS date, 'Bill ' || i.bill_number AS ref,
+               COALESCE(c.name, 'Walk-in customer') AS party, ii.quantity AS qty, ii.unit_price AS price, ii.subtotal AS total
+        FROM invoice_items ii
+        JOIN invoices i ON i.id = ii.invoice_id
+        LEFT JOIN customers c ON c.id = i.customer_id
+        WHERE ii.product_id = ?
+      `).all(productId).map(r => ({ ...r, unit_cost: null, landed_cost: cost, profit: r.total - r.qty * cost }));
+
+      const saleReturns = db.prepare(`
+        SELECT 'sale_return' AS type, r.return_date AS date, 'Return ' || r.return_number AS ref,
+               COALESCE(c.name, 'Walk-in customer') AS party, -ri.quantity AS qty, ri.unit_price AS price, -ri.subtotal AS total
+        FROM return_items ri
+        JOIN returns r ON r.id = ri.return_id
+        LEFT JOIN customers c ON c.id = r.customer_id
+        WHERE ri.product_id = ?
+      `).all(productId).map(r => ({ ...r, unit_cost: null, landed_cost: cost, profit: r.total - r.qty * cost }));
+
+      const rows = [
+        ...purchases.map(r => ({ ...r, total: r.qty * r.landed_cost, profit: null })),
+        ...supplierReturns.map(r => ({ ...r, total: r.qty * r.landed_cost, profit: null })),
+        ...sales,
+        ...saleReturns
+      ].sort((a, b) => String(b.date).localeCompare(String(a.date)));
+
+      const sum = (list, f) => list.reduce((t, r) => t + f(r), 0);
+      const summary = {
+        bought_qty: sum(purchases, r => r.qty) + sum(supplierReturns, r => r.qty),
+        bought_total: sum(purchases, r => r.qty * r.landed_cost) + sum(supplierReturns, r => r.qty * r.landed_cost),
+        sold_qty: sum(sales, r => r.qty) + sum(saleReturns, r => r.qty),
+        sold_total: sum(sales, r => r.total) + sum(saleReturns, r => r.total),
+        profit: sum(sales, r => r.profit) + sum(saleReturns, r => r.profit),
+        stock: product.current_stock,
+        cost_price: cost,
+        selling_price: product.selling_price
+      };
+      return { success: true, product, rows, summary };
+    } catch (error) {
+      return { success: false, message: error.message };
+    }
+  });
+
   // Delete product
   ipcMain.handle('delete-product', (event, productId) => {
     const denied = checkPermission(event, 'inventory');
