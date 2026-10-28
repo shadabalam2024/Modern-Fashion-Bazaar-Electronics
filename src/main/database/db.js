@@ -348,6 +348,9 @@ class ShopDatabase {
         if (changed) updatePerms.run(JSON.stringify(perms), role.id);
       }
     }
+
+    // names are kept in capital letters (existing data is converted once, after a backup)
+    require('../caps').convertExistingToCapitals(this.db, require('path').join(app.getPath('userData'), 'backups'));
   }
 
   prepare(sql) {

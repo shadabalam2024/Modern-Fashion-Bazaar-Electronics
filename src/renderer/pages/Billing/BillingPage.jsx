@@ -581,7 +581,7 @@ export default function BillingPage() {
                         placeholder="Name"
                         value={customerName}
                         onChange={(e) => setCustomerName(e.target.value)}
-                        className="w-full px-4 py-2 border rounded"
+                        className="uppercase w-full px-4 py-2 border rounded"
                       />
                     </div>
                     <div>
@@ -601,7 +601,7 @@ export default function BillingPage() {
                         placeholder="Address (shown on the bill)"
                         value={customerAddress}
                         onChange={(e) => setCustomerAddress(e.target.value)}
-                        className="w-full px-4 py-2 border rounded"
+                        className="uppercase w-full px-4 py-2 border rounded"
                       />
                     </div>
                   </div>

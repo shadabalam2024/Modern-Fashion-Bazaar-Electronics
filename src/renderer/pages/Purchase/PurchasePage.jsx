@@ -230,19 +230,21 @@ export default function PurchasePage() {
   const handleAddNewProduct = async (e) => {
     e.preventDefault()
     setError('')
-    // one spelling per word: "samsung" and "Samsung" are saved as the same brand / item / colour / size
+    // names are saved in capital letters, so "samsung" and "Samsung" can never be two records
     const f = {
       ...newProductForm,
-      item_name: labelCase(newProductForm.item_name, distinct('item_name')),
-      brand: labelCase(newProductForm.brand, distinct('brand')),
-      color: labelCase(newProductForm.color, distinct('color'))
+      name: labelCase(newProductForm.name),
+      sku: labelCase(newProductForm.sku),
+      item_name: labelCase(newProductForm.item_name),
+      brand: labelCase(newProductForm.brand),
+      color: labelCase(newProductForm.color)
     }
 
     if (!f.name.trim() || !f.cost_price || !f.selling_price) {
       setError('Name, cost price, and selling price are required for a new product')
       return
     }
-    const sizes = [...new Set(f.sizes.split(',').map(x => labelCase(x, distinct('size'), true)).filter(Boolean))]
+    const sizes = [...new Set(f.sizes.split(',').map(x => labelCase(x)).filter(Boolean))]
     const common = {
       category_id: f.category_id || null,
       cost_price: parseFloat(f.cost_price),
@@ -613,12 +615,12 @@ export default function PurchasePage() {
                   <Field label="Supplier Name" className="col-span-2">
                     <input required placeholder="Supplier Name" value={supplierForm.name}
                       onChange={(e) => setSupplierForm({ ...supplierForm, name: e.target.value })}
-                      className="w-full px-3 py-2 border rounded" />
+                      className="uppercase w-full px-3 py-2 border rounded" />
                   </Field>
                   <Field label="Contact Person">
                     <input placeholder="Contact Person" value={supplierForm.contact_person}
                       onChange={(e) => setSupplierForm({ ...supplierForm, contact_person: e.target.value })}
-                      className="w-full px-3 py-2 border rounded" />
+                      className="uppercase w-full px-3 py-2 border rounded" />
                   </Field>
                   <Field label="Phone">
                     <input placeholder="Phone" value={supplierForm.phone}
@@ -638,7 +640,7 @@ export default function PurchasePage() {
                   <Field label="Address" className="col-span-2">
                     <input placeholder="Address" value={supplierForm.address}
                       onChange={(e) => setSupplierForm({ ...supplierForm, address: e.target.value })}
-                      className="w-full px-3 py-2 border rounded" />
+                      className="uppercase w-full px-3 py-2 border rounded" />
                   </Field>
                   <button type="submit" className="col-span-2 bg-blue-600 text-white py-2 rounded hover:bg-blue-700">
                     Save Supplier
@@ -691,7 +693,7 @@ export default function PurchasePage() {
                   <Field label="Product Name" className="col-span-2">
                     <input required placeholder="Product Name" value={newProductForm.name}
                       onChange={(e) => setNewProductForm({ ...newProductForm, name: e.target.value })}
-                      className="w-full px-3 py-2 border rounded" />
+                      className="uppercase w-full px-3 py-2 border rounded" />
                   </Field>
                   <datalist id="pp-items">{itemSuggestions.map(v => <option key={v} value={v} />)}</datalist>
                   <datalist id="pp-sizes">{sizeSuggestions.map(v => <option key={v} value={v} />)}</datalist>
@@ -700,12 +702,12 @@ export default function PurchasePage() {
                   <Field label="Item Name (optional)" className="col-span-2">
                     <input list="pp-items" placeholder="e.g. Fridge, Iron - the kind of item (added to the name after Product Name)" value={newProductForm.item_name}
                       onChange={(e) => setNewProductForm({ ...newProductForm, item_name: e.target.value })}
-                      className="w-full px-3 py-2 border rounded" />
+                      className="uppercase w-full px-3 py-2 border rounded" />
                   </Field>
                   <Field label="Sizes (optional, comma separated)" className="col-span-2">
                     <input list="pp-sizes" placeholder="e.g. S, M, L, XL  or  28, 30, 32 - makes one product per size" value={newProductForm.sizes}
                       onChange={(e) => setNewProductForm({ ...newProductForm, sizes: e.target.value })}
-                      className="w-full px-3 py-2 border rounded" />
+                      className="uppercase w-full px-3 py-2 border rounded" />
                     {newProductForm.sizes.trim() && (
                       <p className="text-xs text-gray-500 mt-1">Each size becomes its own product with its own barcode and stock. SKU and barcode below are not used.</p>
                     )}
@@ -713,17 +715,17 @@ export default function PurchasePage() {
                   <Field label="Colour (optional)">
                     <input list="pp-colors" placeholder="e.g. Blue" value={newProductForm.color}
                       onChange={(e) => setNewProductForm({ ...newProductForm, color: e.target.value })}
-                      className="w-full px-3 py-2 border rounded" />
+                      className="uppercase w-full px-3 py-2 border rounded" />
                   </Field>
                   <Field label="Brand (optional)">
                     <input list="pp-brands" placeholder="Brand" value={newProductForm.brand}
                       onChange={(e) => setNewProductForm({ ...newProductForm, brand: e.target.value })}
-                      className="w-full px-3 py-2 border rounded" />
+                      className="uppercase w-full px-3 py-2 border rounded" />
                   </Field>
                   <Field label="SKU">
                     <input placeholder="SKU" value={newProductForm.sku}
                       onChange={(e) => setNewProductForm({ ...newProductForm, sku: e.target.value })}
-                      className="w-full px-3 py-2 border rounded" />
+                      className="uppercase w-full px-3 py-2 border rounded" />
                   </Field>
                   <Field label="Barcode (scan, type, or leave blank to auto-assign)">
                     <div className="flex gap-2">
@@ -760,7 +762,7 @@ export default function PurchasePage() {
                       <input
                         type="text" placeholder="New category name"
                         value={newCategory} onChange={(e) => setNewCategory(e.target.value)}
-                        className="flex-1 px-3 py-2 border rounded text-sm"
+                        className="uppercase flex-1 px-3 py-2 border rounded text-sm"
                       />
                       <button type="button" onClick={handleAddCategory} className="px-3 py-2 border rounded text-sm hover:bg-gray-50">
                         Add

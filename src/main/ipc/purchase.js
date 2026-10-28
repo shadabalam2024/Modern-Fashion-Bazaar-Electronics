@@ -1,5 +1,6 @@
 const { dialog } = require('electron');
 const ExcelJS = require('exceljs');
+const { up } = require('../caps');
 const { checkPermission } = require('../session');
 const { computePurchaseTotals } = require('../purchaseMath');
 const { nextBarcodes } = require('../barcodes');
@@ -303,7 +304,7 @@ module.exports = (ipcMain, db) => {
       const result = db.prepare(`
         INSERT INTO suppliers (name, contact_person, phone, email, address, gstin)
         VALUES (?, ?, ?, ?, ?, ?)
-      `).run(supplier.name, supplier.contact_person, supplier.phone, supplier.email, supplier.address,
+      `).run(up(supplier.name), up(supplier.contact_person), supplier.phone, supplier.email, up(supplier.address),
         supplier.gstin ? String(supplier.gstin).trim().toUpperCase() : null);
 
       return { success: true, supplierId: result.lastInsertRowid };

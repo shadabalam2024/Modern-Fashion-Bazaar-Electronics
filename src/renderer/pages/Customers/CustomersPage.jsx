@@ -187,7 +187,7 @@ export default function CustomersPage() {
                 <input
                   type="text" placeholder="Name" required
                   value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })}
-                  className="w-full px-4 py-2 border rounded"
+                  className="uppercase w-full px-4 py-2 border rounded"
                 />
               </Field>
               <Field label="Phone" className="mb-3">
@@ -208,7 +208,7 @@ export default function CustomersPage() {
                 <textarea
                   placeholder="Address"
                   value={form.address} onChange={(e) => setForm({ ...form, address: e.target.value })}
-                  className="w-full px-4 py-2 border rounded"
+                  className="uppercase w-full px-4 py-2 border rounded"
                 />
               </Field>
               <Field label="GSTIN (optional, shown on their bill)" className="mb-3">

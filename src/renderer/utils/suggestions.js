@@ -19,13 +19,5 @@ export const mergeSuggestions = (existing, starters = []) => {
   return out
 }
 
-// Same rule the main process applies when saving: reuse an existing spelling, otherwise capitalise each
-// word (short all-capital words like LG or TV stay) and upper-case sizes. Keeps "samsung" and "Samsung" one value.
-export const labelCase = (value, existing = [], upper = false) => {
-  const text = String(value ?? '').trim().replace(/\s+/g, ' ')
-  if (!text) return ''
-  const match = existing.find(e => String(e).trim().toLowerCase() === text.toLowerCase())
-  if (match) return String(match).trim()
-  if (upper) return text.toUpperCase()
-  return text.split(' ').map(w => (w.length <= 2 && /[A-Z]/.test(w) && w === w.toUpperCase()) ? w : w.charAt(0).toUpperCase() + w.slice(1).toLowerCase()).join(' ')
-}
+// Names are saved in capital letters (the main process does the same), so one spelling exists per word.
+export const labelCase = (value) => String(value ?? '').trim().replace(/\s+/g, ' ').toUpperCase()

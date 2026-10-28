@@ -1,3 +1,4 @@
+const { up } = require('../caps');
 const { checkPermission } = require('../session');
 
 module.exports = (ipcMain, db) => {
@@ -23,10 +24,10 @@ module.exports = (ipcMain, db) => {
         INSERT INTO customers (name, phone, email, address, gstin, is_recurring)
         VALUES (?, ?, ?, ?, ?, ?)
       `).run(
-        customer.name,
+        up(customer.name),
         customer.phone,
         customer.email,
-        customer.address,
+        up(customer.address),
         customer.gstin ? String(customer.gstin).trim().toUpperCase() : null,
         customer.is_recurring ? 1 : 0
       );
@@ -67,10 +68,10 @@ module.exports = (ipcMain, db) => {
         name = ?, phone = ?, email = ?, address = ?, gstin = ?, is_recurring = ?
         WHERE id = ?
       `).run(
-        customer.name,
+        up(customer.name),
         customer.phone,
         customer.email,
-        customer.address,
+        up(customer.address),
         customer.gstin ? String(customer.gstin).trim().toUpperCase() : null,
         customer.is_recurring ? 1 : 0,
         id

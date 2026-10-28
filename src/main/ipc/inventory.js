@@ -3,19 +3,8 @@ const { checkPermission } = require('../session');
 const { buildInventoryWorkbook } = require('../excelExport');
 const { nextBarcodes } = require('../barcodes');
 
-// Brand / item / colour / season / size are stored in one consistent spelling so "samsung" and
-// "Samsung" are the same value: an existing spelling is reused, otherwise each word is capitalised
-// (two-letter all-capital words such as LG or TV are kept) and sizes are upper-case.
-const labelCase = (value, existing = [], upper = false) => {
-  const text = String(value ?? '').trim().replace(/\s+/g, ' ');
-  if (!text) return '';
-  const lower = text.toLowerCase();
-  const match = existing.find(e => String(e).trim().toLowerCase() === lower);
-  if (match) return String(match).trim();
-  if (upper) return text.toUpperCase();
-  return text.split(' ').map(w => (w.length <= 2 && /[A-Z]/.test(w) && w === w.toUpperCase()) ? w : w.charAt(0).toUpperCase() + w.slice(1).toLowerCase()).join(' ');
-};
-const LABEL_COLUMNS = ['brand', 'item_name', 'color', 'season', 'size'];
+const { up } = require('../caps');
+const CAPS_PRODUCT_COLUMNS = ['brand', 'item_name', 'color', 'season', 'size', 'style_name'];
 const EXTRA_COLUMNS = ['brand', 'season', 'hsn_code', 'mrp', 'size', 'color', 'style_name', 'item_name'];
 
 module.exports = (ipcMain, db) => {
@@ -25,33 +14,13 @@ module.exports = (ipcMain, db) => {
     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ${EXTRA_COLUMNS.map(() => '?').join(', ')})
   `);
   // Optional descriptive fields, empty string -> null; mrp must be a number
-  const existingValues = (col) => db.prepare(`SELECT DISTINCT ${col} AS v FROM products WHERE ${col} IS NOT NULL`).all().map(r => r.v);
   const extraFields = (p) => EXTRA_COLUMNS.map(c => {
     const v = p[c];
     if (v === undefined || v === null || v === '') return null;
     if (c === 'mrp') return Number(v);
-    if (LABEL_COLUMNS.includes(c)) return labelCase(v, existingValues(c), c === 'size') || null;
+    if (CAPS_PRODUCT_COLUMNS.includes(c)) return up(v) || null;
     return String(v).trim();
   });
-
-  // One-off tidy-up of values saved before this rule: make every spelling of the same word match
-  db.transaction(() => {
-    for (const col of LABEL_COLUMNS) {
-      const groups = new Map();
-      for (const v of existingValues(col)) {
-        const key = String(v).trim().toLowerCase();
-        if (!groups.has(key)) groups.set(key, []);
-        groups.get(key).push(v);
-      }
-      for (const values of groups.values()) {
-        const wanted = labelCase(values[0], [], col === 'size');
-        const canon = values.find(v => v === wanted) ?? wanted;
-        for (const v of values) {
-          if (v !== canon) db.prepare(`UPDATE products SET ${col} = ? WHERE ${col} = ?`).run(canon, v);
-        }
-      }
-    }
-  })();
 
   // Get all products. Login-only: used across Billing, Purchase, and Inventory, each
   // with a different permission - the common requirement is just being logged in.
@@ -92,7 +61,7 @@ module.exports = (ipcMain, db) => {
       const result = db.prepare(`
         INSERT INTO products (name, cost_price, selling_price, current_stock, min_stock_level, is_custom)
         VALUES (?, ?, ?, ?, ?, 1)
-      `).run(name, price, price, 999999, 0);
+      `).run(up(name), price, price, 999999, 0);
 
       return { success: true, productId: result.lastInsertRowid };
     } catch (error) {
@@ -105,6 +74,8 @@ module.exports = (ipcMain, db) => {
     const denied = checkPermission(event, 'inventory');
     if (denied) return denied;
     try {
+      product.name = up(product.name);
+      product.sku = up(product.sku) || null;
       const barcode = product.barcode || (product.autoBarcode ? nextBarcodes(db, 1)[0] : null);
       const result = insertProduct.run(
         product.name,
@@ -130,10 +101,10 @@ module.exports = (ipcMain, db) => {
     const denied = checkPermission(event, 'inventory');
     if (denied) return denied;
     try {
-      const sizeExisting = existingValues('size');
-      const sizeList = [...new Set((sizes || []).map(s => labelCase(s, sizeExisting, true)).filter(Boolean))];
-      color = labelCase(color, existingValues('color'));
-      product.item_name = labelCase(product.item_name, existingValues('item_name'));
+      style = up(style);
+      const sizeList = [...new Set((sizes || []).map(s => up(s)).filter(Boolean))];
+      color = up(color);
+      product.item_name = up(product.item_name);
       if (!String(style || '').trim()) return { success: false, message: 'Enter a product name' };
       if (sizeList.length === 0) return { success: false, message: 'Enter at least one size' };
 
@@ -162,6 +133,8 @@ module.exports = (ipcMain, db) => {
     try {
       const runUpdate = db.transaction(() => {
         const existing = db.prepare('SELECT cost_price FROM products WHERE id = ?').get(id);
+        product.name = up(product.name);
+        product.sku = up(product.sku) || null;
 
         db.prepare(`
           UPDATE products SET
@@ -289,7 +262,7 @@ module.exports = (ipcMain, db) => {
     const denied = checkPermission(event, 'inventory');
     if (denied) return denied;
     try {
-      const result = db.prepare('INSERT INTO categories (name) VALUES (?)').run(name);
+      const result = db.prepare('INSERT INTO categories (name) VALUES (?)').run(up(name));
       return { success: true, categoryId: result.lastInsertRowid };
     } catch (error) {
       return { success: false, message: error.message };
@@ -310,8 +283,8 @@ module.exports = (ipcMain, db) => {
       for (const p of products) {
         try {
           insert.run(
-            p.name,
-            p.sku,
+            up(p.name),
+            up(p.sku) || null,
             p.barcode,
             p.category_id || null,
             p.cost_price,

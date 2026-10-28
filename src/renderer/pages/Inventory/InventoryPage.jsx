@@ -440,13 +440,13 @@ export default function InventoryPage() {
               <input
                 type="text" placeholder="Product Name" required
                 value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })}
-                className="w-full px-4 py-2 border rounded mb-3"
+                className="uppercase w-full px-4 py-2 border rounded mb-3"
               />
               <label className="block text-xs text-gray-500 mb-1">Item Name (optional)</label>
               <input
                 type="text" list="inv-items" placeholder="e.g. Fridge, Iron - the kind of item"
                 value={form.item_name} onChange={(e) => setForm({ ...form, item_name: e.target.value })}
-                className="w-full px-4 py-2 border rounded mb-3"
+                className="uppercase w-full px-4 py-2 border rounded mb-3"
               />
               <div className="grid grid-cols-2 gap-3 mb-3">
                 <div>
@@ -505,7 +505,7 @@ export default function InventoryPage() {
                   <input
                     type="text" placeholder="New category name"
                     value={newCategory} onChange={(e) => setNewCategory(e.target.value)}
-                    className="flex-1 px-4 py-2 border rounded text-sm"
+                    className="uppercase flex-1 px-4 py-2 border rounded text-sm"
                   />
                   <button type="button" onClick={handleAddCategory} className="px-3 py-2 border rounded text-sm hover:bg-gray-50">
                     Add
@@ -569,21 +569,21 @@ export default function InventoryPage() {
                   <label className="block text-xs text-gray-500 mb-1">Brand</label>
                   <input
                     type="text" list="inv-brands" value={form.brand} onChange={(e) => setForm({ ...form, brand: e.target.value })}
-                    className="w-full px-4 py-2 border rounded"
+                    className="uppercase w-full px-4 py-2 border rounded"
                   />
                 </div>
                 <div>
                   <label className="block text-xs text-gray-500 mb-1">Size</label>
                   <input
                     type="text" list="inv-sizes" value={form.size} onChange={(e) => setForm({ ...form, size: e.target.value })}
-                    className="w-full px-4 py-2 border rounded"
+                    className="uppercase w-full px-4 py-2 border rounded"
                   />
                 </div>
                 <div>
                   <label className="block text-xs text-gray-500 mb-1">Colour</label>
                   <input
                     type="text" list="inv-colors" value={form.color} onChange={(e) => setForm({ ...form, color: e.target.value })}
-                    className="w-full px-4 py-2 border rounded"
+                    className="uppercase w-full px-4 py-2 border rounded"
                   />
                 </div>
                 <div>
@@ -597,7 +597,7 @@ export default function InventoryPage() {
                   <label className="block text-xs text-gray-500 mb-1">Season</label>
                   <input
                     type="text" value={form.season} onChange={(e) => setForm({ ...form, season: e.target.value })}
-                    className="w-full px-4 py-2 border rounded"
+                    className="uppercase w-full px-4 py-2 border rounded"
                   />
                 </div>
               </div>
